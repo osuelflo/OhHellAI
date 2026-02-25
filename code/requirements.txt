@@ -2,7 +2,4 @@ flask
 flask-cors
 gunicorn
 numpy
-random
-time
 pandas
-math
