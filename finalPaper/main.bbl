@@ -1,0 +1,82 @@
+\begin{thebibliography}{14}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Van Der~Werf(2004)]{van2004ai}
+Erik Van Der~Werf.
+\newblock Ai techniques for the game of go.
+\newblock 2004.
+
+\bibitem[Cowling et~al.(2012)Cowling, Powley, and Whitehouse]{cowling2012information}
+Peter~I Cowling, Edward~J Powley, and Daniel Whitehouse.
+\newblock Information set monte carlo tree search.
+\newblock \emph{IEEE Transactions on Computational Intelligence and AI in Games}, 4\penalty0 (2):\penalty0 120--143, 2012.
+
+\bibitem[Coulom(2006)]{coulom2006mcts}
+R{\'e}mi Coulom.
+\newblock Efficient selectivity and backup operators in monte-carlo tree search.
+\newblock In \emph{Proceedings of the 5th International Conference on Computers and Games}, pages 72--83, 2006.
+
+\bibitem[Kocsis and Szepesv{\'a}ri(2006)]{kocsis2006uct}
+Levente Kocsis and Csaba Szepesv{\'a}ri.
+\newblock Bandit-based monte-carlo planning.
+\newblock In \emph{Proceedings of the 17th European Conference on Machine Learning (ECML 2006)}, volume 4212 of \emph{Lecture Notes in Computer Science}, pages 282--293. Springer, 2006.
+
+\bibitem[Browne et~al.(2012)Browne, Powley, Whitehouse, Lucas, Cowling, Rohlfshagen, Tavener, Perez, Samothrakis, and Colton]{browne2012survey}
+Cameron~B. Browne, Edward Powley, Daniel Whitehouse, Simon~M. Lucas, Peter~I. Cowling, Philipp Rohlfshagen, Stephen Tavener, Diego Perez, Spyridon Samothrakis, and Simon Colton.
+\newblock A survey of monte carlo tree search methods.
+\newblock \emph{IEEE Transactions on Computational Intelligence and AI in Games}, 4\penalty0 (1):\penalty0 1--43, 2012.
+
+\bibitem[{AI Factory}(2013)]{AIFactory2013}
+{AI Factory}.
+\newblock Reducing the burden of knowledge: Simulation-based methods in imperfect information games, Jan 2013.
+\newblock \url{https://www.aifactory.co.uk/newsletter/2013_01_reduce_burden.html}.
+
+\bibitem[Winands(2017)]{winands2017magic}
+M~Winands.
+\newblock The magic of monte-carlo tree search.
+\newblock AI Factory Newsletter, Feb 2017.
+\newblock \url{https://www.aifactory.co.uk/newsletter/2017_02_magic_montecarlo.htm}.
+
+\bibitem[Cowling et~al.(2013)Cowling, Powley, and Whitehouse]{Cowling2013}
+Peter Cowling, Edward Powley, and Daniel Whitehouse.
+\newblock Ismcts: A simple python implementation of the information set monte carlo tree search algorithm, 2013.
+\newblock \url{https://www.aifactory.co.uk/newsletter/ISMCTS.txt}.
+
+\bibitem[Rollason(2018)]{rollason2018figuring}
+Jeff Rollason.
+\newblock Figuring out the opponent's hand in spades.
+\newblock AI Factory Newsletter, Feb 2018.
+\newblock \url{https://www.aifactory.co.uk/newsletter/2018_02_opponent_hand.htm}.
+
+\bibitem[Rollason(2019)]{rollason2019bidding_inferences}
+Jeff Rollason.
+\newblock Bidding inferences with spades.
+\newblock AI Factory Newsletter, Jan 2019.
+\newblock \url{https://www.aifactory.co.uk/newsletter/2019_01_bidding_inferences.htm}.
+
+\bibitem[Rebstock et~al.(2019)Rebstock, Solinas, Buro, and Sturtevant]{rebstock2019policy}
+Douglas Rebstock, Christopher Solinas, Michael Buro, and Nathan~R Sturtevant.
+\newblock Policy based inference in trick-taking card games.
+\newblock In \emph{2019 IEEE Conference on Games (CoG)}, pages 1--8. IEEE, 2019.
+
+\bibitem[Russell et~al.(2024)Russell, Norvig, and Contributors]{cs188_particle_filtering}
+Stuart Russell, Peter Norvig, and Contributors.
+\newblock \emph{Particle Filtering}, chapter Hidden Markov Models.
+\newblock University of California, Berkeley, 2024.
+\newblock URL \url{https://inst.eecs.berkeley.edu/~cs188/textbook/hmms/particle-filtering.html}.
+
+\bibitem[Cohensius et~al.(2019)Cohensius, Meir, Oved, and Stern]{cohensius2019bidding}
+Gal Cohensius, Reshef Meir, Nadav Oved, and Roni Stern.
+\newblock Bidding in spades.
+\newblock \emph{arXiv preprint arXiv:1912.11323}, 2019.
+
+\bibitem[{Wikipedia contributors}(2025)]{wiki:mcts}
+{Wikipedia contributors}.
+\newblock Monte carlo tree search, 2025.
+\newblock \url{https://en.wikipedia.org/wiki/Monte_Carlo_tree_search}.
+
+\end{thebibliography}

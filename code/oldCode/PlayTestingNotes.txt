@@ -1,0 +1,4 @@
+A player had 7H and 5H and a 8H was lead. They did not need to win any more tricks, yet they played the 5.
+Potentially low bid in starting position with this hand (bid 2): [AC 8C] [JS 6S 3S] [AH JH 9H] [JD 8D]
+With selfish, once AI player cannot win, they just play randomly.
+With a 0 bid, computer should always play highest card they know they cannot win with.

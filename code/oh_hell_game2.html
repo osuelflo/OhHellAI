@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oh Hell — Card Game</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Lato:wght@300;400;700&display=swap');
+        
+        :root {
+            --forest: #0d2818;
+            --emerald: #1a4d2e;
+            --cream: #faf8f3;
+            --gold: #f0c674;
+            --accent-gold: #ffd700;
+            --burgundy: #8b2e3f;
+            --slate: #2c3e50;
+            --felt: #1e5f45;
+            --card-bg: #ffffff;
+            --text-dark: #1a1a1a;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Lato', sans-serif;
+            background: radial-gradient(ellipse at center, var(--emerald) 0%, var(--forest) 100%);
+            color: var(--cream);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            position: fixed;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.03) 2px,
+                    rgba(0, 0, 0, 0.03) 4px
+                );
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .app-container {
+            position: relative;
+            z-index: 2;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        header {
+            text-align: center;
+            padding: 1rem 0 1.5rem;
+            border-bottom: 2px solid var(--gold);
+            animation: fadeInDown 0.8s ease-out;
+            flex-shrink: 0;
+        }
+        
+        h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--gold);
+            text-shadow: 
+                2px 2px 4px rgba(0, 0, 0, 0.5),
+                0 0 20px rgba(212, 175, 55, 0.3);
+            margin-bottom: 0.3rem;
+        }
+        
+        .subtitle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1rem;
+            font-weight: 300;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--cream);
+            opacity: 0.8;
+        }
+        
+        /* Game Table */
+        .game-table {
+            background: var(--felt);
+            border-radius: 150px;
+            padding: 2rem;
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 2px 4px rgba(255, 255, 255, 0.1);
+            position: relative;
+            flex: 1;
+            max-width: 900px;
+            margin: 1rem auto;
+            animation: scaleIn 0.6s ease-out 0.2s backwards;
+        }
+        
+        .game-table::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            border: 3px solid rgba(212, 175, 55, 0.2);
+            border-radius: 190px;
+            pointer-events: none;
+        }
+        
+        /* Trump indicator */
+        .trump-indicator {
+            position: absolute;
+            top: 1.5rem;
+            right: 5rem;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            border: 3px solid var(--accent-gold);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            animation: slideInRight 0.6s ease-out 0.4s backwards;
+        }
+        
+        .trump-label {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--forest);
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+        
+        .trump-suit {
+            font-size: 2.5rem;
+            text-align: center;
+        }
+        
+        /* Trick display */
+        .trick-area {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.7);
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            padding: 2rem;
+            min-width: 200px;
+        }
+        
+        .trick-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem 1rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            text-align: center;
+            animation: cardFlip 0.4s ease-out;
+            transform-style: preserve-3d;
+        }
+        
+        .trick-card .player-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--slate);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .trick-card .card-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--slate);
+        }
+        
+        .trick-card .card-display.red {
+            color: var(--burgundy);
+        }
+        
+        /* Player positions */
+        .players {
+            position: relative;
+            height: 500px;
+        }
+        
+        .player-area {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .player-area.bottom {
+            bottom: 4rem;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.top {
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.left {
+            left: 3rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-area.right {
+            right: 3rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-info {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            border: 2px solid var(--accent-gold);
+            text-align: center;
+            min-width: 120px;
+            animation: fadeIn 0.5s ease-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .player-info.active {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .player-name-display {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .player-stats {
+            display: flex;
+            justify-content: space-around;
+            gap: 0.75rem;
+            margin-top: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--text-dark);
+        }
+        
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-label {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--slate);
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--burgundy);
+        }
+        
+        /* Hand display - positioned for each player with center card touching table */
+        .hand {
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 400px;
+        }
+        
+        /* Human player - bottom center, center card just touching table */
+        .player-area.bottom .hand {
+            bottom: -65px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* Left player - needs to be further OUT from table */
+        .player-area.left .hand {
+            left: -245px;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            transform-origin: center;
+        }
+        
+        /* Top player - center card just touching table */
+        .player-area.top .hand {
+            top: -45px;
+            left: 50%;
+            transform: translateX(-50%) rotate(180deg);
+        }
+        
+        /* Right player - needs to be further OUT from table */
+        .player-area.right .hand {
+            right: -245px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            transform-origin: center;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            width: 75px;
+            height: 110px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.4rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: absolute;
+            border: 2px solid #2a2a2a;
+        }
+        
+        /* Face-down card for AI players - smaller */
+        .card.face-down {
+            background: linear-gradient(135deg, #4a1a2c 0%, #2a3f5f 100%);
+            border-color: var(--gold);
+            cursor: default;
+            width: 55px;
+            height: 80px;
+        }
+        
+        .card.face-down::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 75%;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(212, 175, 55, 0.4),
+                rgba(212, 175, 55, 0.4) 8px,
+                transparent 8px,
+                transparent 16px
+            );
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            border-radius: 6px;
+        }
+        
+        /* Card animation */
+        @keyframes cardSlide {
+            0% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(var(--target-x)) translateY(var(--target-y)) rotate(0deg) scale(1.2);
+                opacity: 1;
+            }
+        }
+        
+        .card.animating {
+            animation: cardSlide 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        .card-corner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1;
+            font-weight: 700;
+        }
+        
+        .card-corner-top {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.6rem;
+        }
+        
+        .card-corner-bottom {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.6rem;
+            transform: rotate(180deg);
+        }
+        
+        .card-rank {
+            font-size: 1.2rem;
+            font-weight: 800;
+            font-family: 'Lato', sans-serif;
+        }
+        
+        .card-suit-corner {
+            font-size: 1rem;
+            margin-top: -0.2rem;
+        }
+        
+        .card-center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 0.3rem;
+        }
+        
+        .card-suit-center {
+            font-size: 3rem;
+            line-height: 1;
+        }
+        
+        .face-card-center {
+            font-size: 2.2rem;
+            font-weight: 800;
+            font-family: 'Cormorant Garamond', serif;
+        }
+        
+        /* Black suits */
+        .card:not(.red) {
+            color: #000;
+        }
+        
+        .card:not(.red) .card-rank,
+        .card:not(.red) .card-suit-corner,
+        .card:not(.red) .card-suit-center,
+        .card:not(.red) .face-card-center {
+            color: #000;
+        }
+        
+        /* Red suits */
+        .card.red {
+            color: #d32f2f;
+        }
+        
+        .card.red .card-rank,
+        .card.red .card-suit-corner,
+        .card.red .card-suit-center,
+        .card.red .face-card-center {
+            color: #d32f2f;
+        }
+        
+        .card:hover:not(.disabled) {
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.9), 0 0 50px rgba(212, 175, 55, 0.5);
+            border-color: var(--gold);
+            z-index: 1000 !important;
+        }
+        
+        .card.disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+            filter: grayscale(80%);
+        }
+        
+        .card.disabled:hover {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+        }
+        
+        /* Control panel */
+        .controls {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            z-index: 100;
+            animation: fadeIn 0.8s ease-out 0.6s backwards;
+        }
+        
+        .btn {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 0.75rem 1.5rem;
+            border: 2px solid var(--accent-gold);
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--forest);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn:hover {
+            background: var(--accent-gold);
+            color: var(--forest);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn.primary {
+            background: var(--gold);
+            color: var(--forest);
+        }
+        
+        .btn.primary:hover {
+            background: var(--cream);
+        }
+        
+        /* Bidding modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .modal-content {
+            background: var(--cream);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 3px solid var(--accent-gold);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            text-align: center;
+            min-width: 350px;
+            max-width: 500px;
+            animation: scaleIn 0.4s ease-out;
+        }
+        
+        .modal-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .bid-options {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+        
+        .bid-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px solid var(--forest);
+            background: white;
+            color: var(--forest);
+            font-size: 1.3rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .bid-btn:hover {
+            background: var(--accent-gold);
+            color: var(--forest);
+            border-color: var(--accent-gold);
+            transform: scale(1.1);
+        }
+        
+        .bid-btn.illegal {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        /* Status messages */
+        .status-message {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 58, 46, 0.95);
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            border: 2px solid var(--gold);
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            color: var(--cream);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            animation: slideInUp 0.4s ease-out;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translate(-50%, 20px);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
+        
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes cardFlip {
+            0% {
+                transform: rotateY(-90deg);
+                opacity: 0;
+            }
+            100% {
+                transform: rotateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(212, 175, 55, 0.8);
+            }
+        }
+        
+        .hidden {
+            display: none;
+        }
+
+        /* Trick winner overlay */
+        .trick-winner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .trick-winner-banner {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--emerald) 100%);
+            border: 4px solid var(--accent-gold);
+            border-radius: 20px;
+            padding: 2rem 3.5rem;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 60px rgba(255, 215, 0, 0.25);
+            animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .trick-winner-emoji {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .trick-winner-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--gold);
+            opacity: 0.85;
+            margin-bottom: 0.4rem;
+        }
+
+        .trick-winner-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.6rem;
+            font-weight: 700;
+            color: var(--cream);
+            text-shadow: 0 0 20px rgba(255,215,0,0.4);
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .trick-winner-btn {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 0.85rem 2.5rem;
+            border: 2px solid var(--accent-gold);
+            background: var(--accent-gold);
+            color: var(--forest);
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
+        }
+
+        .trick-winner-btn:hover {
+            background: var(--cream);
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 8px 30px rgba(255, 215, 0, 0.6);
+        }
+
+        /* Bidding phase - human cards highlighted */
+        .card.bidding-highlight {
+            box-shadow: 0 10px 35px rgba(255, 215, 0, 0.5), 0 4px 12px rgba(0,0,0,0.4) !important;
+            border-color: rgba(212, 175, 55, 0.6) !important;
+            opacity: 1 !important;
+            filter: none !important;
+            width: 82px !important;
+            height: 120px !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Oh Hell</h1>
+            <div class="subtitle">Gentleman's Card Club</div>
+        </header>
+        
+        <div id="root"></div>
+    </div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        // API configuration - uses relative URL so it works both locally and on Railway
+        const API_URL = window.location.origin;
+        
+        // Card display helpers
+        const SUITS = { 0: '♣', 1: '♦', 2: '♥', 3: '♠' };
+        const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+        
+        function cardToString(cardIndex) {
+            const suit = Math.floor(cardIndex / 13);
+            const rank = cardIndex % 13;
+            return RANKS[rank] + SUITS[suit];
+        }
+        
+        function cardIsRed(cardIndex) {
+            const suit = Math.floor(cardIndex / 13);
+            return suit === 1 || suit === 2; // Diamonds or Hearts
+        }
+        
+        function App() {
+            const [gameState, setGameState] = useState(null);
+            const [showBidModal, setShowBidModal] = useState(false);
+            const [showSetupModal, setShowSetupModal] = useState(true);
+            const [statusMessage, setStatusMessage] = useState('');
+            const [numPlayers, setNumPlayers] = useState(4);
+            const [gameProgress, setGameProgress] = useState(null);
+            const [animatingCard, setAnimatingCard] = useState(null); // {player, card}
+            const [trickWinner, setTrickWinner] = useState(null);
+            const [pendingContinue, setPendingContinue] = useState(null);
+            const [sessionId, setSessionId] = useState(null); // unique session per game
+            
+            // Enter key to dismiss trick winner overlay
+            useEffect(() => {
+                function handleKeyDown(e) {
+                    if (e.key === 'Enter' && trickWinner && trickWinner.resolve) {
+                        trickWinner.resolve();
+                    }
+                }
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [trickWinner]);
+            
+            // Automatically show bid modal when it's human's turn to bid
+            useEffect(() => {
+                if (gameState && gameState.phase === 'bidding' && gameState.currentPlayer === 0) {
+                    console.log('Human turn to bid - showing modal');
+                    setShowBidModal(true);
+                } else {
+                    setShowBidModal(false);
+                }
+            }, [gameState]);
+            
+            // Initialize game
+            async function startGame(players) {
+                console.log('Starting game with', players, 'players...');
+                try {
+                    console.log('Sending request to:', `${API_URL}/start`);
+                    const response = await fetch(`${API_URL}/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            numPlayers: players,
+                            humanPlayer: 0
+                        })
+                    });
+                    
+                    console.log('Response status:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error('Server error:', errorData);
+                        setStatusMessage(`Server error: ${errorData.error || 'Unknown error'}`);
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Received game state:', data);
+                    
+                    setSessionId(data.session_id);
+                    setGameState(data);
+                    setGameProgress(data.gameProgress);
+                    setShowSetupModal(false);
+                    
+                    // useEffect will handle showing bid modal automatically
+                } catch (error) {
+                    console.error('Failed to start game:', error);
+                    setStatusMessage(`Failed to connect to server. Error: ${error.message}`);
+                    setTimeout(() => {
+                        setStatusMessage('Make sure Python backend is running on http://localhost:5000');
+                    }, 3000);
+                }
+            }
+            
+            // Submit bid
+            async function submitBid(bid) {
+                try {
+                    setShowBidModal(false);
+                    
+                    const response = await fetch(`${API_URL}/bid`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId, player: 0, bid })
+                    });
+                    const data = await response.json();
+                    console.log('Bid response:', data);
+                    
+                    setGameState(data);
+                    setGameProgress(data.gameProgress);
+                    
+                    // Check if bidding is complete
+                    const allBidsPlaced = data.players.every(p => p.bid !== null);
+                    
+                    if (allBidsPlaced) {
+                        // Bidding phase complete!
+                        const bidsDisplay = data.players.map((p, i) => 
+                            `Player ${i+1}: ${p.bid}`
+                        ).join(' • ');
+                        setStatusMessage(`✓ Bidding Complete! ${bidsDisplay}`);
+                        
+                        setTimeout(() => {
+                            setStatusMessage('Starting play phase...');
+                            setTimeout(() => setStatusMessage(''), 2000);
+                        }, 2500);
+                        
+                        // If an AI is leading, start polling
+                        if (data.currentPlayer !== 0 && data.phase === 'playing') {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await pollForAIPlays(data);
+                        }
+                    } else {
+                        // Still bidding
+                        setStatusMessage(`You bid ${bid}. Waiting for other players...`);
+                        setTimeout(() => setStatusMessage(''), 2000);
+                    }
+                } catch (error) {
+                    console.error('Failed to submit bid:', error);
+                    setStatusMessage('Error submitting bid');
+                }
+            }
+            
+            // Play card
+            async function playCard(cardIndex) {
+                if (gameState.currentPlayer !== 0) return;
+                if (!gameState.legalMoves.includes(cardIndex)) return;
+                
+                // Start animation
+                setAnimatingCard({ player: 0, card: cardIndex });
+                
+                // Wait for animation to complete
+                await new Promise(resolve => setTimeout(resolve, 600));
+                
+                try {
+                    // Play human card
+                    const response = await fetch(`${API_URL}/play`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId, player: 0, card: cardIndex })
+                    });
+                    const data = await response.json();
+                    
+                    // Clear animation and update state
+                    setAnimatingCard(null);
+                    setGameState(data);
+                    setGameProgress(data.gameProgress);
+                    
+                    // Check if human just completed a trick
+                    if (data.lastCompletedTrick) {
+                        // Show the completed trick first
+                        setGameState({...data, trick: data.lastCompletedTrick});
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        
+                        const winnerId = data.lastTrickWinner !== undefined ? data.lastTrickWinner : null;
+                        const winnerName = winnerId === 0 ? 'You' : winnerId !== null ? `Player ${winnerId + 1}` : 'Unknown';
+                        const winningCard = data.lastWinningCard !== undefined ? data.lastWinningCard : null;
+                        
+                        await new Promise(resolve => {
+                            setTrickWinner({ name: winnerName, winningCard, resolve });
+                        });
+                        setTrickWinner(null);
+                        setGameState(data);
+                    } else {
+                        // Wait 0.5 seconds to show the human's card
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    // Now poll for AI plays one at a time
+                    await pollForAIPlays(data);
+                    
+                } catch (error) {
+                    console.error('Failed to play card:', error);
+                    setAnimatingCard(null);
+                }
+            }
+            
+            async function pollForAIPlays(currentState) {
+                // Keep polling while it's an AI's turn and round isn't over
+                while (currentState.currentPlayer !== 0 && !currentState.roundOver && currentState.phase === 'playing') {
+                    try {
+                        // Request next AI play
+                        const response = await fetch(`${API_URL}/advance_ai`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: sessionId })
+                        });
+                        const data = await response.json();
+                        
+                        // Check if trick just completed (server sends lastCompletedTrick)
+                        if (data.lastCompletedTrick) {
+                            // Show the completed trick (all 4 cards)
+                            setGameState({...data, trick: data.lastCompletedTrick});
+                            setGameProgress(data.gameProgress);
+                            
+                            // Wait 0.8s to show the completed trick, then show winner overlay
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                            
+                            // Determine winner name
+                            const winnerId = data.lastTrickWinner !== undefined ? data.lastTrickWinner : null;
+                            const winnerName = winnerId === 0 ? 'You' : winnerId !== null ? `Player ${winnerId + 1}` : 'Unknown';
+                            const winningCard = data.lastWinningCard !== undefined ? data.lastWinningCard : null;
+                            
+                            // Pause and show overlay - wait for user to click continue
+                            await new Promise(resolve => {
+                                setTrickWinner({ name: winnerName, winningCard, resolve });
+                            });
+                            setTrickWinner(null);
+                            
+                            // Now clear the trick and update to actual state
+                            setGameState(data);
+                        } else {
+                            // Normal update
+                            setGameState(data);
+                            setGameProgress(data.gameProgress);
+                            
+                            // Wait 0.5 seconds to show the card
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                        
+                        currentState = data;
+                        
+                    } catch (error) {
+                        console.error('Failed to advance AI:', error);
+                        break;
+                    }
+                }
+                
+                // Handle round/game over
+                if (currentState.roundOver) {
+                    setTimeout(() => {
+                        if (currentState.gameOver) {
+                            const winnerName = currentState.winner === 0 ? 'You' : `Player ${currentState.winner + 1}`;
+                            setStatusMessage(`🎉 Game Over! ${winnerName} won with ${currentState.cumulativeScores[currentState.winner]} points! 🎉`);
+                        } else {
+                            setStatusMessage('Round complete! Starting next round...');
+                            setTimeout(() => {
+                                nextRound();
+                            }, 2500);
+                        }
+                    }, 1500);
+                }
+            }
+            
+            // Next round
+            async function nextRound() {
+                try {
+                    console.log('Requesting next round...');
+                    const response = await fetch(`${API_URL}/next_round`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId })
+                    });
+                    const data = await response.json();
+                    console.log('Next round data:', data);
+                    
+                    setGameState(data);
+                    setGameProgress(data.gameProgress);
+                    setStatusMessage('');
+                    
+                    // useEffect will handle showing bid modal automatically
+                } catch (error) {
+                    console.error('Failed to start next round:', error);
+                    setStatusMessage('Error starting next round');
+                }
+            }
+            
+            if (showSetupModal) {
+                return (
+                    <div className="modal">
+                        <div className="modal-content">
+                            <div className="modal-title">Oh Hell</div>
+                            <div style={{ color: 'var(--forest)', marginBottom: '2rem', fontSize: '1.2rem', fontWeight: '600' }}>
+                                Select number of players:
+                            </div>
+                            <div className="bid-options">
+                                {[3, 4, 5].map(n => (
+                                    <button
+                                        key={n}
+                                        className="bid-btn"
+                                        style={{ width: '80px', height: '80px', fontSize: '2rem' }}
+                                        onClick={() => startGame(n)}
+                                    >
+                                        {n}
+                                    </button>
+                                ))}
+                            </div>
+                            <div style={{ color: 'var(--slate)', marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8 }}>
+                                19 rounds • 10→1→10 tricks
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (!gameState) {
+                return (
+                    <div className="game-table">
+                        <div style={{ textAlign: 'center', padding: '4rem' }}>
+                            <div className="modal-title">Shuffling the deck...</div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            // Safety checks
+            if (!gameState.players || !gameState.players[0]) {
+                console.error('Invalid game state:', gameState);
+                return (
+                    <div className="game-table">
+                        <div style={{ textAlign: 'center', padding: '4rem' }}>
+                            <div className="modal-title">Loading game...</div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            const { players, currentPlayer, trick, trumpSuit, phase, legalMoves } = gameState;
+            const humanPlayer = players[0];
+            
+            return (
+                <>
+                    <div className="game-table">
+                        {/* Trump indicator */}
+                        <div className="trump-indicator">
+                            <div className="trump-label">Trump Suit</div>
+                            <div className="trump-suit" style={{ 
+                                color: trumpSuit === 1 || trumpSuit === 2 ? '#d32f2f' : '#000'
+                            }}>
+                                {SUITS[trumpSuit]}
+                            </div>
+                            {gameProgress && (
+                                <div style={{ 
+                                    marginTop: '1rem', 
+                                    paddingTop: '1rem', 
+                                    borderTop: '1px solid var(--slate)' 
+                                }}>
+                                    <div style={{ 
+                                        fontSize: '0.8rem', 
+                                        opacity: 0.7, 
+                                        marginBottom: '0.3rem',
+                                        color: 'var(--slate)'
+                                    }}>
+                                        Round {gameProgress.currentRound} / {gameProgress.totalRounds}
+                                    </div>
+                                    <div style={{ 
+                                        fontSize: '0.9rem', 
+                                        fontWeight: 'bold',
+                                        color: 'var(--forest)'
+                                    }}>
+                                        {gameState.tricksInRound} Tricks
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Players */}
+                        <div className="players">
+                            {players.map((player, idx) => (
+                                <div 
+                                    key={idx} 
+                                    className={`player-area ${
+                                        idx === 0 ? 'bottom' : 
+                                        idx === 1 ? 'left' :
+                                        idx === 2 ? 'top' : 
+                                        idx === 3 ? 'right' : 'top'
+                                    }`}
+                                >
+                                    <div className={`player-info ${currentPlayer === idx ? 'active' : ''}`}>
+                                        <div className="player-name-display">
+                                            {idx === 0 ? 'You' : `Player ${idx + 1}`}
+                                        </div>
+                                        <div className="player-stats">
+                                            <div className="stat">
+                                                <span className="stat-label">Bid</span>
+                                                <span className="stat-value">{player.bid ?? '-'}</span>
+                                            </div>
+                                            <div className="stat">
+                                                <span className="stat-label">Won</span>
+                                                <span className="stat-value">{player.tricksTaken}</span>
+                                            </div>
+                                            {gameProgress && (
+                                                <div className="stat">
+                                                    <span className="stat-label">Score</span>
+                                                    <span className="stat-value">{gameProgress.cumulativeScores[idx]}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Show hand for ALL players */}
+                                    {((idx === 0 && humanPlayer.hand && humanPlayer.hand.length > 0) ||
+                                      (idx !== 0 && player.numCards > 0)) && (
+                                        <div className="hand">
+                                            {idx === 0 ? (
+                                                // Human player - show real cards
+                                                humanPlayer.hand.map((card, cardIdx) => {
+                                                    const totalCards = humanPlayer.hand.length;
+                                                    const centerIndex = (totalCards - 1) / 2;
+                                                    const offset = cardIdx - centerIndex;
+                                                    
+                                                    // Human at bottom: POSITIVE Y curves outward (down/away from table)
+                                                    const rotateAngle = offset * 8;
+                                                    const translateX = offset * 42;
+                                                    const translateY = Math.abs(offset) * 10; // POSITIVE for bottom player
+                                                    
+                                                    const isLegal = phase === 'playing' && legalMoves.includes(card);
+                                                    const isPlayPhase = phase === 'playing';
+                                                    const isBiddingPhase = phase === 'bidding';
+                                                    const canPlay = isPlayPhase && currentPlayer === 0 && isLegal;
+                                                    
+                                                    const suit = Math.floor(card / 13);
+                                                    const rank = card % 13;
+                                                    const displayRank = RANKS[rank];
+                                                    const displaySuit = SUITS[suit];
+                                                    const isFaceCard = ['J', 'Q', 'K', 'A'].includes(displayRank);
+                                                    
+                                                    // Check if this card is animating
+                                                    const isAnimating = animatingCard && animatingCard.player === 0 && animatingCard.card === card;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={cardIdx}
+                                                            className={`card ${cardIsRed(card) ? 'red' : ''} ${
+                                                                (isPlayPhase && !canPlay) ? 'disabled' : ''
+                                                            } ${isAnimating ? 'animating' : ''} ${isBiddingPhase ? 'bidding-highlight' : ''}`}
+                                                            style={{
+                                                                transform: `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotateAngle}deg)`,
+                                                                zIndex: isAnimating ? 9999 : cardIdx,
+                                                                left: '50%',
+                                                                marginLeft: isBiddingPhase ? '-41px' : '-37.5px',
+                                                                '--target-x': isAnimating ? '0px' : '0px',
+                                                                '--target-y': isAnimating ? '-250px' : '0px'
+                                                            }}
+                                                            onClick={() => canPlay && playCard(card)}
+                                                        >
+                                                            <div className="card-corner card-corner-top">
+                                                                <div className="card-rank">{displayRank}</div>
+                                                                <div className="card-suit-corner">{displaySuit}</div>
+                                                            </div>
+                                                            <div className="card-center">
+                                                                {isFaceCard ? (
+                                                                    <div className="face-card-center">{displayRank}</div>
+                                                                ) : (
+                                                                    <div className="card-suit-center">{displaySuit}</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="card-corner card-corner-bottom">
+                                                                <div className="card-rank">{displayRank}</div>
+                                                                <div className="card-suit-corner">{displaySuit}</div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                // AI players - show face-down cards
+                                                [...Array(player.numCards)].map((_, cardIdx) => {
+                                                    const totalCards = player.numCards;
+                                                    const centerIndex = (totalCards - 1) / 2;
+                                                    const offset = cardIdx - centerIndex;
+                                                    
+                                                    const rotateAngle = offset * 6;
+                                                    const translateX = offset * 32;
+                                                    
+                                                    // Fan direction depends on player position:
+                                                    // Bottom (0) & Top (2): POSITIVE Y curves outward
+                                                    // Left (1) & Right (3): NEGATIVE Y curves outward (due to 90° rotation)
+                                                    let translateY;
+                                                    if (idx === 1 || idx === 3) {
+                                                        // Left or Right - NEGATIVE for outward
+                                                        translateY = -Math.abs(offset) * 8;
+                                                    } else {
+                                                        // Top or Bottom - POSITIVE for outward
+                                                        translateY = Math.abs(offset) * 8;
+                                                    }
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={cardIdx}
+                                                            className="card face-down"
+                                                            style={{
+                                                                transform: `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotateAngle}deg)`,
+                                                                zIndex: cardIdx,
+                                                                left: '50%',
+                                                                marginLeft: '-27.5px'
+                                                            }}
+                                                        />
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            
+                            {/* Current trick */}
+                            {trick.length > 0 && (
+                                <div className="trick-area">
+                                    {trick.map((play, idx) => (
+                                        <div key={idx} className="trick-card">
+                                            <div className="player-name">
+                                                {play.player === 0 ? 'You' : `Player ${play.player + 1}`}
+                                            </div>
+                                            <div className={`card-display ${cardIsRed(play.card) ? 'red' : ''}`}>
+                                                {cardToString(play.card)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Bidding modal - only shows when phase is bidding AND it's human's turn */}
+                    {phase === 'bidding' && currentPlayer === 0 && showBidModal && (
+                        <div className="modal" style={{ 
+                            background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.1) 100%)',
+                            alignItems: 'flex-start'
+                        }}>
+                            <div className="modal-content" style={{ 
+                                position: 'fixed', 
+                                top: '10%',
+                                maxWidth: '550px',
+                                zIndex: 2000
+                            }}>
+                                <div className="modal-title" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                                    Your Turn to Bid
+                                </div>
+                                <div style={{ 
+                                    color: 'var(--forest)', 
+                                    marginBottom: '1.5rem', 
+                                    fontSize: '1rem',
+                                    padding: '1rem',
+                                    background: 'rgba(255, 255, 255, 0.5)',
+                                    borderRadius: '10px',
+                                    border: '2px solid var(--slate)'
+                                }}>
+                                    {gameState.players.filter(p => p.bid !== null).length > 0 ? (
+                                        <div>
+                                            <strong style={{ fontSize: '1.05rem' }}>Bids so far:</strong>
+                                            <div style={{ marginTop: '0.5rem', fontSize: '1.05rem' }}>
+                                                {gameState.players.map((p, i) => 
+                                                    p.bid !== null ? `Player ${i+1}: ${p.bid}` : null
+                                                ).filter(Boolean).join(' • ')}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: '1.05rem' }}>
+                                            🎴 You are first to bid!
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ 
+                                    fontSize: '1.05rem', 
+                                    color: 'var(--forest)', 
+                                    marginBottom: '1rem',
+                                    fontWeight: '600',
+                                    padding: '0.75rem',
+                                    background: 'rgba(255, 255, 255, 0.5)',
+                                    borderRadius: '8px',
+                                    border: '2px solid var(--accent-gold)'
+                                }}>
+                                    <strong>Trump Suit:</strong> <span style={{ 
+                                        fontSize: '2rem', 
+                                        color: cardIsRed(trumpSuit * 13) ? '#d32f2f' : '#000', 
+                                        background: 'white', 
+                                        padding: '0.3rem 0.7rem', 
+                                        borderRadius: '8px',
+                                        marginLeft: '0.5rem',
+                                        border: '2px solid #ccc'
+                                    }}>{SUITS[trumpSuit]}</span>
+                                </div>
+                                <div className="bid-options">
+                                    {[...Array(gameState.tricksInRound + 1)].map((_, bid) => {
+                                        const totalBids = players
+                                            .filter(p => p.bid !== null)
+                                            .reduce((sum, p) => sum + p.bid, 0);
+                                        const isLastBidder = players.filter(p => p.bid === null).length === 1;
+                                        const isIllegal = isLastBidder && (totalBids + bid === gameState.tricksInRound);
+                                        
+                                        return (
+                                            <button
+                                                key={bid}
+                                                className={`bid-btn ${isIllegal ? 'illegal' : ''}`}
+                                                onClick={() => !isIllegal && submitBid(bid)}
+                                                disabled={isIllegal}
+                                                style={isIllegal ? { 
+                                                    textDecoration: 'line-through',
+                                                    opacity: 0.25,
+                                                    cursor: 'not-allowed'
+                                                } : {}}
+                                            >
+                                                {bid}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {players.filter(p => p.bid === null).length === 1 && (
+                                    <div style={{ 
+                                        marginTop: '1.25rem', 
+                                        fontSize: '0.9rem', 
+                                        color: 'var(--gold)',
+                                        padding: '0.75rem',
+                                        background: 'rgba(212, 175, 55, 0.1)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(212, 175, 55, 0.3)'
+                                    }}>
+                                        ⚠️ <strong>Last bidder rule:</strong> Total bids cannot equal {gameState.tricksInRound} tricks
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Trick winner overlay */}
+                    {trickWinner && (
+                        <div className="trick-winner-overlay">
+                            <div className="trick-winner-banner">
+                                <div className="trick-winner-emoji">
+                                    {trickWinner.name === 'You' ? '🏆' : '🃏'}
+                                </div>
+                                <div className="trick-winner-title">Trick Won By</div>
+                                <div className="trick-winner-name">{trickWinner.name}</div>
+                                {trickWinner.winningCard !== null && trickWinner.winningCard !== undefined && (
+                                    <div style={{
+                                        display: 'inline-block',
+                                        background: 'white',
+                                        borderRadius: '10px',
+                                        padding: '0.5rem 1rem',
+                                        marginBottom: '1.25rem',
+                                        border: '2px solid var(--accent-gold)',
+                                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                                    }}>
+                                        <span style={{
+                                            fontSize: '2rem',
+                                            fontWeight: 'bold',
+                                            color: cardIsRed(trickWinner.winningCard) ? '#d32f2f' : '#1a1a1a'
+                                        }}>
+                                            {cardToString(trickWinner.winningCard)}
+                                        </span>
+                                    </div>
+                                )}
+                                <div>
+                                    <button
+                                        className="trick-winner-btn"
+                                        onClick={() => trickWinner.resolve && trickWinner.resolve()}
+                                    >
+                                        Next Trick <span style={{ opacity: 0.65, fontSize: '0.85em' }}>(Enter)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Status message */}
+                    {statusMessage && (
+                        <div className="status-message">
+                            {statusMessage}
+                        </div>
+                    )}
+                    
+                    {/* Controls */}
+                    <div className="controls">
+                        <button className="btn" onClick={() => {
+                            setShowSetupModal(true);
+                            setGameState(null);
+                            setGameProgress(null);
+                            setSessionId(null);
+                        }}>
+                            New Game
+                        </button>
+                    </div>
+                </>
+            );
+        }
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

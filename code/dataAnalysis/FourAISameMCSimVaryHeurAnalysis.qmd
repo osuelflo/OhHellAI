@@ -1,0 +1,67 @@
+---
+title: "FourAISameMCSimVaryHeurAnalysis"
+format: html
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(purrr)
+```
+
+```{r,message=False}
+experimentNames <- c("One")
+hours <- 1:7
+
+dflst = list()
+for(h in hours){
+  for(exp in experimentNames){
+    fname = str_glue("FourAISameMCSimVaryHeur{h}Hr{exp}.csv")
+    if(file.exists(fname)){
+      df = read_csv(fname)
+      # df <- df %>% mutate(dealer = case_when(dealer == 0 ~ 3,
+      #                                        dealer != 0 ~ dealer-1))
+      # df<-df %>% mutate(rankCategory = case_when(rankCategory == "mediumHigh" ~ "mediumhigh",
+      #                                        rankCategory != "mediumHigh" ~ rankCategory))
+      dflst[[length(dflst) + 1]] <- df
+    }
+  }
+}
+df <- bind_rows(dflst)
+```
+
+
+```{r}
+View(df)
+```
+
+```{r}
+df %>% 
+  count(winner)
+```
+
+```{r}
+df %>% 
+  summarize(totalScore0 = sum(score0),
+            totalScore1 = sum(score1),
+            totalScore2 = sum(score2),
+            totalScore3 = sum(score3)) %>% 
+  mutate(avgScore0 = totalScore0/nrow(df),
+            avgScore1 = totalScore1/nrow(df),
+            avgScore2 = totalScore2/nrow(df),
+            avgScore3 = totalScore3/nrow(df))
+```
+
+```{r}
+df %>% 
+  group_by(winner,dealer) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+write_csv(df,"FourAIVaryMCSimVaryHeurCombined2500.csv")
+```

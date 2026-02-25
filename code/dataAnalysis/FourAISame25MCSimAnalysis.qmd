@@ -1,0 +1,160 @@
+---
+title: "FourAISame25MCSimAnalysis"
+format: html
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(purrr)
+```
+
+```{r,message=False}
+experimentNames <- c("One")
+hours <- 1:3
+
+dflst = list()
+for(h in hours){
+  for(exp in experimentNames){
+    fname = str_glue("../FourAISame25MCSim{h}Hr{exp}.csv")
+    if(file.exists(fname)){
+      df = read_csv(fname)
+      # df <- df %>% mutate(dealer = case_when(dealer == 0 ~ 3,
+      #                                        dealer != 0 ~ dealer-1))
+      # df<-df %>% mutate(rankCategory = case_when(rankCategory == "mediumHigh" ~ "mediumhigh",
+      #                                        rankCategory != "mediumHigh" ~ rankCategory))
+      dflst[[length(dflst) + 1]] <- df
+    }
+  }
+}
+df <- bind_rows(dflst)
+```
+
+
+```{r}
+df %>% 
+  count(winner)
+```
+
+```{r}
+df %>% 
+  summarize(totalScore0 = sum(score0),
+            totalScore1 = sum(score1),
+            totalScore2 = sum(score2),
+            totalScore3 = sum(score3)) %>% 
+  mutate(avgScore0 = totalScore0/nrow(df),
+            avgScore1 = totalScore1/nrow(df),
+            avgScore2 = totalScore2/nrow(df),
+            avgScore3 = totalScore3/nrow(df))
+```
+
+```{r}
+df %>% 
+  group_by(winner,dealer) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+```{r}
+my_get_dealer <- function(dealer,round){
+  deal <- dealer
+  i <- 1
+  while(i < round){
+    i <- i + 1
+    deal <- deal + 1
+    if(deal > 3){
+      deal <- 0
+    }
+  }
+  return(deal)
+}
+```
+
+
+```{r}
+my_get_scores_position <- function(scores,dealer){
+  score_position <- c(0,0,0,0)
+  first <- dealer + 1
+  if(first > 4){
+    first <- 1
+  }
+  start <- first
+  i <- 1
+  while(first != dealer){
+    score_position[[i]]<-scores[[first]]
+    i <- i + 1
+    first <- first + 1
+    if(first > 4){
+      first <- 1
+    }
+  }
+  score_position[[i]]<-scores[[first]]
+  return(score_position)
+}
+```
+
+```{r}
+scores_by_position <- array(0, dim = c(19, nrow(df), 4))
+for(trick in 7:25){
+  for(row in 1:nrow(df)){
+    my_str <- df[row,trick]
+    nums <- str_remove_all(my_str, "\\[|\\]") |>   # remove [ ]
+               str_split(",") |>
+               lapply(as.numeric)
+    vals <- nums[[1]]
+    dealer <- my_get_dealer(df[row,6],trick-6)[[1]]
+    scores_by_position[trick - 6, row, ] <- my_get_scores_position(vals, dealer + 1)
+  }
+}
+```
+
+```{r}
+# We want to find the percent win for each round for each position
+avg_win_pct_by_position <- array(0,dim=c(19,4))
+for(round in 1:19){
+  for(p in 1:4){
+    for(game in 1:nrow(df)){
+      if(scores_by_position[round,game,p] > 0){
+        avg_win_pct_by_position[round,p] <- 1 + avg_win_pct_by_position[round,p]
+      }
+      else{
+        avg_win_pct_by_position[round,p] <- 0 + avg_win_pct_by_position[round,p]
+      }
+    }
+    avg_win_pct_by_position[round,p] <- avg_win_pct_by_position[round,p]/nrow(df)
+  }
+}
+```
+
+
+
+
+```{r}
+
+avg_win_pct_pos_df <- as.data.frame(avg_win_pct_by_position) %>% 
+  mutate(round = c(10,9,8,7,6,5,4,3,2,1,2,3,4,5,6,7,8,9,10)) %>% 
+  group_by(round) %>% 
+  summarize(one = mean(V1),
+            two = mean(V2),
+            three = mean(V3),
+            four = mean(V4)) %>% 
+  pivot_longer(cols = !round, names_to = "Player",values_to = "win_pct")
+```
+
+```{r}
+avg_win_pct_pos_df %>% 
+ggplot(aes(x=round,y=win_pct,color = Player))+
+  geom_line()+
+  geom_point()
+```
+
+
+
+
+
+```{r}
+write_csv(df,"../FourAISame25MCSimCombined.csv")
+```

@@ -1,0 +1,119 @@
+---
+title: "playAnalysis"
+format: html
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(purrr)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+experimentNames <- c("One")
+hours <- 0:90
+
+dflst = list()
+for(h in hours){
+  for(exp in experimentNames){
+    fname = str_glue("../FourAISameMCSimPlayAnalysis{h}Hr{exp}.csv")
+    if(file.exists(fname)){
+      df = read_csv(fname)
+      df<-df %>% mutate(rankCategory = case_when(rankCategory == "mediumHigh" ~ "mediumhigh",
+                                             rankCategory != "mediumHigh" ~ rankCategory))
+      dflst[[length(dflst) + 1]] <- df
+    }
+  }
+}
+combinedPlaysDataSelfish <- bind_rows(dflst)
+write.csv(combinedPlaysDataSelfish,"combinedPlayDataSelfish.csv")
+```
+
+
+Questions to answer:
+Given number of tricks needed to win, what card is usually played
+What card is typically lead by computer with 10 tricks left
+
+```{r}
+combinedPlaysDataSelfish %>% group_by(tricksToWin0) %>% 
+  count()
+```
+
+```{r}
+combinedPlaysDataSelfish %>% group_by(numSuitInHand,tricksToWin0) %>% 
+  count() %>% 
+  filter(tricksToWin0 == 0)
+```
+
+
+
+```{r}
+combinedPlaysDataSelfish %>% 
+  filter(!trump,tricksLeft > 7) %>% 
+  group_by(numSuitInHand,tricksToWin0) %>% 
+  summarize(total = n()) %>% 
+  ungroup() %>% 
+  group_by(tricksToWin0) %>% 
+  mutate(prob = total/sum(total)) %>% 
+  ungroup() %>% 
+  filter(tricksToWin0 >= 0, tricksToWin0 <= 5,numSuitInHand < 6) %>% 
+  ggplot(aes(x = as.factor(numSuitInHand), y = as.factor(tricksToWin0), fill = prob)) +
+  geom_tile() +geom_text(aes(label = str_glue("{round(prob*100)}")), color = "white", size = 4) +
+  labs(x="Number of Cards in Suit",
+       y="Number of Tricks Needed to Win",
+       fill = "Pr(card)",
+       title="Probabilites of When the AI Plays Certain Cards When it Has the Lead",
+       subtitle="4 AI player game, normal aggressiveness, 2500 mc iterations")+
+  scale_fill_gradient(low="pink",high="brown")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(hjust = 1))
+```
+
+
+
+```{r}
+combinedPlaysDataSelfish %>%
+  group_by(rankCategory,trump,tricksToWin0) %>%
+  summarize(total = n()) %>%
+  ungroup() %>%
+  group_by(tricksToWin0) %>%
+  mutate(prob = total/sum(total)) %>%
+  ungroup() %>% 
+  mutate(rankTrump = case_when(trump == TRUE ~ str_c(rankCategory,"T"),
+                               trump == FALSE ~ str_c(rankCategory,"O"))) %>% 
+  mutate(rankTrump = factor(rankTrump,levels = c("lowT","mediumlowT","mediumhighT","highT","veryhighT",
+                                                "lowO","mediumlowO","mediumhighO","highO","veryhighO"))) %>% 
+  filter(tricksToWin0 >= 0, tricksToWin0 <= 5) %>% 
+  ggplot(aes(x = as.factor(rankTrump), y = as.factor(tricksToWin0), fill = prob)) +
+  geom_tile() +geom_text(aes(label = str_glue("{round(prob*100)}")), color = "white", size = 4) +
+  labs(x="Card Rank + Trump",
+       y="Number of Tricks Needed to Win",
+       fill = "Pr(card)",
+       title="Probabilites of When the AI Plays Certain Cards When it Has the Lead",
+       subtitle="4 AI player game, normal aggressiveness, 2500 mc iterations")+
+  scale_fill_gradient(low="pink",high="brown")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# ggsave("playstyle.png")
+```
+
+
+# ```{r}
+# exampleProbTable <- read_csv("probabilityData/sideOneTrickProbs.csv")
+# exampleProbTable2 <- read_csv("probabilityData/trumpOneTrickProbs.csv")
+# df1 <- exampleProbTable %>% 
+#   filter(num_players==4) %>% 
+#   select(rank,probability,player_order)
+# df2 <- exampleProbTable2 %>% 
+#   filter(num_players==4) %>% 
+#   select(rank,probability,player_order)
+# write.csv(df1,"probabilityData/paperOneTrickSideTab.csv")
+# write.csv(df2,"probabilityData/paperOneTrickTrumpTab.csv")
+# ```
+
+
+
+

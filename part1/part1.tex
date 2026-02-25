@@ -1,0 +1,38 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{hyperref}
+
+\title{Project Proposal}
+\author{Owen Suelflow}
+\date{September 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Sudoku AI}
+For this project, I would write a program to solve sudoku puzzles of varying difficulty and with varying rule sets.
+The main application of AI would be using state search techniques and logical statements to decide what to do next.
+I want to explore how well AI can imitate human thinking by implementing strategies used by humans to solve Sudoku puzzles.
+I hope to only use logical strategies to solve these puzzles, not relying on random search to solve the puzzle.
+This project will hopefully shed light on how well AI can mimic human thinking, as well as what kinds of thinking the AI performs best at.
+I hope to perform tests to determine which strategies work best, which aren't as fruitful, and which take a long time for the AI.
+I would create a Sudoku solver program from scratch, first working to develop a good representation of the puzzle itself, and then building in solving strategies.
+I may use snippets of existing code here and there, but I don't think I will be using very much. 
+I haven't really fleshed this idea out yet, but it would be cool to work in some sort of evolutionary agent component in.
+Something like evolving an agent to eventually have the most efficient puzzle solving strategy would be interesting -- are there certain techniques that are slower to do (i.e. involve more moves in the game, like writing in candidates for a given cell)?
+I think most of the resources that will be useful for me will present themselves as I begin coding up this project. I've played hundreds of hours of Sudoku, both with classic rulesets and rulesets with many unique twists. I feel confident that I know all the widely-used solving strategies.
+In terms of how I can evaluate the success/lack of success for a given solve, I will keep track of the number of "moves" required, as well as the difficulty of the strategies used.
+For example, the simplest strategy in Sudoku is the Naked Single, where a row, column, or box has only one cell without a digit, meaning that cell only has one candidate digit and thus that missing digit must go there. 
+If a puzzle can be solved by placing all the unknown digits using this strategy, it should be characterized as easy. Strategies that are more complex will indicate a harder puzzle. One thing I will need to figure out is how I will input a puzzle into my code. I am hoping to use some sort of existing image-processing software that can take in a picture of an unsolved sudoku puzzle and translate it into data my program can work with.
+\section{Card Games}
+My intentions for a project about card games would be to write a program that creates an AI agent to play a specific card game. Time permitting, I would love to do this for other card games. Currently, I am interested in a few different techniques to build these AI agents.
+The thing that excites me most about this project is that card games like Hearts, the game I intend to focus on first, are imperfect information games. This means that a player doesn't know all of the information in the current state, such as what cards the other players have. This makes for a very interesting problem. Games such as Chess and Checkers, which are perfect information games, have already been practically solved by AI. For card games, though, this is not the case. While there are AI poker players and agents for other card games that are quite good, there is always room for improvement. 
+I also think it is just a very interesting problem, considering the randomness of being dealt cards as well as the uncertainty of what other players will do. As for the methods I will use, I've done some looking and it seems that the two main methods being employed in AI card game players are Monte Carlo Tree Search and Counterfactual Regret Minimzation. The basic idea with MCTS is to build a searchs space for each game state and pick the move that maximizes expected winnings, within the rules of the game.
+One key idea in this is abstraction, which in the MCTS context involves reducing the size of the search space. Counterfactual Regret Minimzation is a bit more complex, and my understanding of it is that the agent is trying to minimize the "regret" of a given move. 
+A big benefit of this project is that I will get to learn more complex techniques than in the Sudoku project, though that comes with challenges in implementing them and may require more time to understand them and learn about existing software.
+This project area has many components that extend into broad areas of society. Decision making with imperfect information is something humans do everyday, from deciding what clothes to wear so people will think well of them, to a hedgefund manager deciding whether to invest in a certain stock. We are always trying to make the best decision with the information we do have, and make inferences that will bolster the expected outcome. The AI agents for imperfect information games like Hearts and Poker are no different.
+I envision using some existing software as well as my own code. I will first build my own representation of Hearts (and any additional card games), and then likely use some existing code from projects that have already tried to build AI card game players. I hope to make it my own by implementing constraints and strategies that allow the AI to save computation time. I also hope to build multiple agents that each have their own strategies, and then have one agent that doesn't have prescribed strategies and learns the optimal way to play by playing the game lots of times.
+\href{https://www.researchgate.net/profile/Pieter_Spronck/publication/220716999_Monte-Carlo_Tree_Search_in_Settlers_of_Catan/links/53fd88720cf2364ccc08ca73/Monte-Carlo-Tree-Search-in-Settlers-of-Catan.pdf}{MCTS For Settles of Catan}, \href{https://studenttheses.uu.nl/bitstream/handle/20.500.12932/37736/Thesis_draft.pdf?sequence=1&isAllowed=y}{MCTS For Hearts}, and \href{https://repository.essex.ac.uk/4117/1/MCTS-Survey.pdf}{A Survey of MCTS Methods} are some papers I can use to help with MCTS. 
+I think I need to just spend some more time looking into MCTS and seeing if there are areas I can expand on.
+\end{document}

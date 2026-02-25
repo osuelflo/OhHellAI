@@ -1,0 +1,6 @@
+fswatch -o . | while read; do
+  git add .
+  git commit -m "auto update" || true
+  git push
+done
+yabba dabba doo dad ad ada dad ad 
