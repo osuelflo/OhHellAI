@@ -877,7 +877,7 @@
                     console.log('Received game state:', data);
                     
                     setSessionId(data.session_id);
-                    setGameState(data);
+                    setGameState(data); // data already contains session_id
                     setGameProgress(data.gameProgress);
                     setShowSetupModal(false);
                     
@@ -925,7 +925,7 @@
                         // If an AI is leading, start polling
                         if (data.currentPlayer !== 0 && data.phase === 'playing') {
                             await new Promise(resolve => setTimeout(resolve, 500));
-                            await pollForAIPlays(data);
+                            await pollForAIPlays(data, data.session_id);
                         }
                     } else {
                         // Still bidding
@@ -984,7 +984,7 @@
                     }
                     
                     // Now poll for AI plays one at a time
-                    await pollForAIPlays(data);
+                    await pollForAIPlays(data, data.session_id);
                     
                 } catch (error) {
                     console.error('Failed to play card:', error);
@@ -992,7 +992,7 @@
                 }
             }
             
-            async function pollForAIPlays(currentState) {
+            async function pollForAIPlays(currentState, sid) {
                 // Keep polling while it's an AI's turn and round isn't over
                 while (currentState.currentPlayer !== 0 && !currentState.roundOver && currentState.phase === 'playing') {
                     try {
@@ -1000,7 +1000,7 @@
                         const response = await fetch(`${API_URL}/advance_ai`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ session_id: sessionId })
+                            body: JSON.stringify({ session_id: sid })
                         });
                         const data = await response.json();
                         
@@ -1052,7 +1052,7 @@
                         } else {
                             setStatusMessage('Round complete! Starting next round...');
                             setTimeout(() => {
-                                nextRound();
+                                nextRound(sid);
                             }, 2500);
                         }
                     }, 1500);
@@ -1060,13 +1060,14 @@
             }
             
             // Next round
-            async function nextRound() {
+            async function nextRound(sid) {
                 try {
-                    console.log('Requesting next round...');
+                    const resolvedSid = sid || sessionId || gameState?.session_id;
+                    console.log('Requesting next round with session:', resolvedSid);
                     const response = await fetch(`${API_URL}/next_round`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ session_id: sessionId })
+                        body: JSON.stringify({ session_id: resolvedSid })
                     });
                     const data = await response.json();
                     console.log('Next round data:', data);
