@@ -227,7 +227,7 @@ def run_bidding_phase(state, human_player=0):
 
     return messages
 
-def run_playing_phase(state, human_player=0, iterations=2500):
+def run_playing_phase(state, human_player=0, iterations=100):
     messages = []
     if state.GetMoves() == 0:
         return messages
