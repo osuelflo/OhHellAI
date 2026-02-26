@@ -167,7 +167,7 @@ def run_bidding_phase(state, human_player=0):
 
     return messages
 
-def run_playing_phase(state, human_player=0, iterations=2500):
+def run_playing_phase(state, human_player=0, iterations=200):
     messages = []
     if state.GetMoves() == 0:
         return messages
@@ -256,7 +256,7 @@ def index():
         with open('oh_hell_game.html', 'r') as f:
             return f.read()
     except FileNotFoundError:
-        return "<h1>Error</h1><p>oh_hell_game2.html not found.</p>", 404
+        return "<h1>Error</h1><p>oh_hell_game.html not found.</p>", 404
 
 @app.route('/start', methods=['POST'])
 def start_game():
