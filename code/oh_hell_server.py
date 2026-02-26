@@ -53,6 +53,49 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 app.config['DEBUG'] = False
 
+# ─── Preload tables once at startup ───────────────────────────────────────────
+# This avoids intermittent read_csv failures caused by working directory issues
+# under gunicorn. All game states share these read-only tables.
+import pandas as pd
+import os
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+
+def _load_csv(relative_path):
+    full_path = os.path.join(_script_dir, relative_path)
+    return pd.read_csv(full_path)
+
+print("Preloading probability tables...")
+try:
+    SIDE_ONE_TRICK_PROBS = _load_csv("probabilityData/sideOneTrickProbs.csv")
+    TRUMP_ONE_TRICK_PROBS = _load_csv("probabilityData/trumpOneTrickProbs.csv")
+    print("✓ One-trick probability tables loaded")
+except Exception as e:
+    print(f"WARNING: Could not load one-trick prob tables: {e}")
+    SIDE_ONE_TRICK_PROBS = pd.DataFrame()
+    TRUMP_ONE_TRICK_PROBS = pd.DataFrame()
+
+# Eagerly preload all round/player combinations used in a full game
+_prob_table_cache = {}
+_all_trick_counts = list(range(1, 11))  # 1 through 10
+_all_player_counts = [3, 4]
+
+for _t in _all_trick_counts:
+    for _p in _all_player_counts:
+        try:
+            _df  = _load_csv(f"probabilityData/{_t}Tricks{_p}PSideSuit.csv")
+            _df2 = _load_csv(f"probabilityData/{_t}Tricks{_p}PTrumpSuit.csv")
+            _prob_table_cache[(_t, _p)] = (_df, _df2)
+            print(f"✓ Loaded prob tables: {_t} tricks, {_p} players")
+        except Exception as e:
+            print(f"WARNING: Missing prob tables {_t}T {_p}P: {e}")
+            _prob_table_cache[(_t, _p)] = (pd.DataFrame(), pd.DataFrame())
+
+def get_prob_tables_cached(tricks_in_round, num_players):
+    return _prob_table_cache.get((tricks_in_round, num_players), (pd.DataFrame(), pd.DataFrame()))
+
+print("✓ All probability tables preloaded")
+
 # ─── Session store ────────────────────────────────────────────────────────────
 # { session_id: { ...game data..., 'last_active': timestamp } }
 game_instances = {}
@@ -100,6 +143,13 @@ def create_game_state(num_players=4, tricks_in_round=10, human_player=0):
         enterCards=enter_cards,
         start=True
     )
+
+    # Overwrite tables with preloaded versions to avoid any disk-read races
+    state.sideOneTrickProbs = SIDE_ONE_TRICK_PROBS
+    state.trumpOneTrickProbs = TRUMP_ONE_TRICK_PROBS
+    state.sideSuitProbs, state.trumpSuitProbs = get_prob_tables_cached(tricks_in_round, num_players)
+
+    return state
     return state
 
 def state_to_json(state, human_player=0):
@@ -412,7 +462,6 @@ def play_card():
         logger.exception("ERROR in play_card")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-@app.route('/advance_ai', methods=['POST'])
 def advance_ai():
     try:
         data = request.json
@@ -442,7 +491,6 @@ def advance_ai():
         logger.exception("ERROR in advance_ai")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-@app.route('/next_round', methods=['POST'])
 def next_round():
     try:
         data = request.json
