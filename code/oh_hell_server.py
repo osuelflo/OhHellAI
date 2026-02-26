@@ -462,6 +462,8 @@ def play_card():
         logger.exception("ERROR in play_card")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/advance_ai', methods=['POST'])
 def advance_ai():
     try:
         data = request.json
