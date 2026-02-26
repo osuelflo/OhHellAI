@@ -1,0 +1,8 @@
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.12"
+
+[phases.build]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "gunicorn oh_hell_server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"

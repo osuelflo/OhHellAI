@@ -19,6 +19,16 @@ import os
 import uuid
 import time
 import threading
+import logging
+import sys
+
+# Configure logging to stdout so Railway captures it
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Import your existing game logic
 try:
@@ -167,7 +177,7 @@ def run_bidding_phase(state, human_player=0):
 
     return messages
 
-def run_playing_phase(state, human_player=0, iterations=200):
+def run_playing_phase(state, human_player=0, iterations=2500):
     messages = []
     if state.GetMoves() == 0:
         return messages
@@ -399,10 +409,9 @@ def play_card():
         return jsonify(response)
 
     except Exception as e:
+        logger.exception("ERROR in play_card")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-@app.route('/advance_ai', methods=['POST'])
 def advance_ai():
     try:
         data = request.json
@@ -429,10 +438,9 @@ def advance_ai():
         return jsonify(response)
 
     except Exception as e:
+        logger.exception("ERROR in advance_ai")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-@app.route('/next_round', methods=['POST'])
 def next_round():
     try:
         data = request.json
