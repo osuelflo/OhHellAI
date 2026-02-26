@@ -67,17 +67,27 @@ def _load_csv(relative_path):
 
 print("Preloading probability tables...")
 try:
-    SIDE_ONE_TRICK_PROBS = _load_csv("probabilityData/sideOneTrickProbs.csv")
-    TRUMP_ONE_TRICK_PROBS = _load_csv("probabilityData/trumpOneTrickProbs.csv")
+    _side_one_df = _load_csv("probabilityData/sideOneTrickProbs.csv")
+    _trump_one_df = _load_csv("probabilityData/trumpOneTrickProbs.csv")
+    # Convert to dict keyed by (num_players, player_order, rank) for O(1) lookup
+    SIDE_ONE_TRICK_PROBS = {
+        (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
+        for _, r in _side_one_df.iterrows()
+    }
+    TRUMP_ONE_TRICK_PROBS = {
+        (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
+        for _, r in _trump_one_df.iterrows()
+    }
+    del _side_one_df, _trump_one_df
     print("✓ One-trick probability tables loaded")
 except Exception as e:
     print(f"WARNING: Could not load one-trick prob tables: {e}")
-    SIDE_ONE_TRICK_PROBS = pd.DataFrame()
-    TRUMP_ONE_TRICK_PROBS = pd.DataFrame()
+    SIDE_ONE_TRICK_PROBS = {}
+    TRUMP_ONE_TRICK_PROBS = {}
 
 # Eagerly preload all round/player combinations used in a full game
 _prob_table_cache = {}
-_all_trick_counts = list(range(1, 11))  # 1 through 10
+_all_trick_counts = list(range(1, 11))
 _all_player_counts = [3, 4]
 
 for _t in _all_trick_counts:
@@ -85,16 +95,45 @@ for _t in _all_trick_counts:
         try:
             _df  = _load_csv(f"probabilityData/{_t}Tricks{_p}PSideSuit.csv")
             _df2 = _load_csv(f"probabilityData/{_t}Tricks{_p}PTrumpSuit.csv")
-            _prob_table_cache[(_t, _p)] = (_df, _df2)
+            # Convert to dict keyed by (numMySuit, numAtLeastOppSuit)
+            _side_dict = {
+                (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
+                for _, r in _df.iterrows()
+            }
+            _trump_dict = {
+                (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
+                for _, r in _df2.iterrows()
+            }
+            del _df, _df2
+            _prob_table_cache[(_t, _p)] = (_side_dict, _trump_dict)
             print(f"✓ Loaded prob tables: {_t} tricks, {_p} players")
         except Exception as e:
             print(f"WARNING: Missing prob tables {_t}T {_p}P: {e}")
-            _prob_table_cache[(_t, _p)] = (pd.DataFrame(), pd.DataFrame())
+            _prob_table_cache[(_t, _p)] = ({}, {})
 
 def get_prob_tables_cached(tricks_in_round, num_players):
-    return _prob_table_cache.get((tricks_in_round, num_players), (pd.DataFrame(), pd.DataFrame()))
+    return _prob_table_cache.get((tricks_in_round, num_players), ({}, {}))
 
-print("✓ All probability tables preloaded")
+print("✓ All probability tables preloaded as dicts — pandas no longer needed at runtime")
+
+# Patch OhHellState lookup methods to use plain dict instead of DataFrame filtering
+# This eliminates pandas memory spikes during gameplay
+def _get_side_prob(self, numMySuits, numOppSuits):
+    return self.sideSuitProbs.get((numMySuits, numOppSuits), 0)
+
+def _get_trump_prob(self, numMySuits, numOppSuits):
+    return self.trumpSuitProbs.get((numMySuits, numOppSuits), 0)
+
+def _get_trump_one_trick_prob(self, numPlayers, order, rank):
+    return self.trumpOneTrickProbs.get((numPlayers, order, rank), 0)
+
+def _get_side_one_trick_prob(self, numPlayers, order, rank):
+    return self.sideOneTrickProbs.get((numPlayers, order, rank), 0)
+
+OhHellState.getSideProb = _get_side_prob
+OhHellState.getTrumpProb = _get_trump_prob
+OhHellState.getTrumpOneTrickProb = _get_trump_one_trick_prob
+OhHellState.getSideOneTrickProb = _get_side_one_trick_prob
 
 # ─── Session store ────────────────────────────────────────────────────────────
 # { session_id: { ...game data..., 'last_active': timestamp } }
@@ -148,6 +187,10 @@ def create_game_state(num_players=4, tricks_in_round=10, human_player=0):
     state.sideOneTrickProbs = SIDE_ONE_TRICK_PROBS
     state.trumpOneTrickProbs = TRUMP_ONE_TRICK_PROBS
     state.sideSuitProbs, state.trumpSuitProbs = get_prob_tables_cached(tricks_in_round, num_players)
+
+    # For 1-trick rounds, probTables is not initialized in __init__ but ISMCTS needs it
+    if not hasattr(state, 'probTables'):
+        state.probTables = state.initializeProbTables()
 
     return state
     return state
