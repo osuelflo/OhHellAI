@@ -5,4 +5,4 @@ NIXPACKS_PYTHON_VERSION = "3.12"
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "gunicorn oh_hell_server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"
+cmd = "gunicorn oh_hell_server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --log-level debug --capture-output --enable-stdio-inheritance"
