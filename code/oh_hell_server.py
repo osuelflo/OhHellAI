@@ -493,6 +493,8 @@ def advance_ai():
         logger.exception("ERROR in advance_ai")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/next_round', methods=['POST'])
 def next_round():
     try:
         data = request.json
