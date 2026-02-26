@@ -263,7 +263,7 @@ def add_progress(response, game):
 def index():
     """Serve the HTML game interface."""
     try:
-        with open('oh_hell_game.html', 'r') as f:
+        with open('oh_hell_game2.html', 'r') as f:
             return f.read()
     except FileNotFoundError:
         return "<h1>Error</h1><p>oh_hell_game.html not found.</p>", 404
