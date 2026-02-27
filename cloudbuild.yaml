@@ -33,3 +33,6 @@ steps:
 
 images:
   - 'europe-west1-docker.pkg.dev/project-72eca311-a412-4fda-9be/cloud-run-source-deploy/ohhellai:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
