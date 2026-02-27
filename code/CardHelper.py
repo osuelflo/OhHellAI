@@ -179,9 +179,9 @@ class CardHelper:
     @staticmethod
     def to_str(card):
         suit,rank = CardHelper.get_card_rank_suit(card,False)
-        if rank == 10:
-            rank = "T"
-        elif rank == 11:
+        # if rank == 10:
+        #     rank = "T"
+        if rank == 11:
             rank = "J"
         elif rank == 12:
             rank = "Q"
