@@ -20,5 +20,4 @@ CMD gunicorn oh_hell_server:app \
     --timeout 300 \
     --log-level info \
     --capture-output \
-    --enable-stdio-inheritance \
-    --preload
+    --enable-stdio-inheritance
