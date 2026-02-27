@@ -1,0 +1,35 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/project-72eca311-a412-4fda-9be/cloud-run-source-deploy/ohhellai:$COMMIT_SHA'
+      - '-f'
+      - 'code/Dockerfile'
+      - 'code'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-west1-docker.pkg.dev/project-72eca311-a412-4fda-9be/cloud-run-source-deploy/ohhellai:$COMMIT_SHA'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'ohhellai'
+      - '--image'
+      - 'europe-west1-docker.pkg.dev/project-72eca311-a412-4fda-9be/cloud-run-source-deploy/ohhellai:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--timeout'
+      - '300'
+
+images:
+  - 'europe-west1-docker.pkg.dev/project-72eca311-a412-4fda-9be/cloud-run-source-deploy/ohhellai:$COMMIT_SHA'
