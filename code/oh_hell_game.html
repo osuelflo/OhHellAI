@@ -949,7 +949,9 @@
             });
             const [showStatsModal, setShowStatsModal] = useState(false);
             const [showRulesModal, setShowRulesModal] = useState(false);
+            const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
             const [statsData, setStatsData] = useState(null);
+            const [leaderboardData, setLeaderboardData] = useState(null);
             const [usernameInput, setUsernameInput] = useState(() => localStorage.getItem('ohHellUsername') || '');
             
             // Enter key to dismiss trick winner overlay
@@ -983,6 +985,17 @@
                     setStatsData(null);
                 }
                 setShowStatsModal(true);
+            }
+
+            async function fetchLeaderboard() {
+                try {
+                    const res = await fetch(`${API_URL}/leaderboard`);
+                    const data = await res.json();
+                    setLeaderboardData(data);
+                } catch (e) {
+                    setLeaderboardData(null);
+                }
+                setShowLeaderboardModal(true);
             }
 
             async function recordGameResult(finalScore, isWinner) {
@@ -1311,8 +1324,62 @@
                     {/* Stats & Rules buttons */}
                     <div className="header-btns">
                         <button className="header-btn" onClick={fetchStats}>Stats</button>
+                        <button className="header-btn" onClick={fetchLeaderboard}>🏆</button>
                         <button className="header-btn" onClick={() => setShowRulesModal(true)}>Rules</button>
                     </div>
+
+                    {/* Leaderboard Modal */}
+                    {showLeaderboardModal && (
+                        <div className="overlay-modal" onClick={() => setShowLeaderboardModal(false)}>
+                            <div className="overlay-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px' }}>
+                                <button className="close-btn" onClick={() => setShowLeaderboardModal(false)}>×</button>
+                                <div className="overlay-title">🏆 Leaderboard</div>
+                                {leaderboardData === null ? (
+                                    <p style={{ textAlign: 'center' }}>Loading...</p>
+                                ) : leaderboardData.length === 0 ? (
+                                    <p style={{ textAlign: 'center', color: '#666' }}>No games played yet!</p>
+                                ) : (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid var(--forest)', color: 'var(--forest)', textAlign: 'left' }}>
+                                                <th style={{ padding: '0.5rem 0.4rem' }}>#</th>
+                                                <th style={{ padding: '0.5rem 0.4rem' }}>Player</th>
+                                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>GP</th>
+                                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>Wins</th>
+                                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>Avg</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {leaderboardData.map((p, i) => {
+                                                const isMe = p.user_id_snippet === userId.slice(-6);
+                                                return (
+                                                    <tr key={i} style={{
+                                                        borderBottom: '1px solid rgba(13,40,24,0.1)',
+                                                        background: isMe ? 'rgba(240,198,116,0.15)' : 'transparent',
+                                                        fontWeight: isMe ? '700' : '400',
+                                                    }}>
+                                                        <td style={{ padding: '0.6rem 0.4rem', color: i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'var(--forest)', fontWeight: '700' }}>
+                                                            {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
+                                                        </td>
+                                                        <td style={{ padding: '0.6rem 0.4rem', color: 'var(--forest)' }}>
+                                                            {p.username}
+                                                            <span style={{ fontSize: '0.75rem', opacity: 0.5, marginLeft: '0.4rem' }}>#{p.user_id_snippet}</span>
+                                                        </td>
+                                                        <td style={{ padding: '0.6rem 0.4rem', textAlign: 'center', color: 'var(--forest)' }}>{p.games_played}</td>
+                                                        <td style={{ padding: '0.6rem 0.4rem', textAlign: 'center', color: 'var(--forest)' }}>{p.wins}</td>
+                                                        <td style={{ padding: '0.6rem 0.4rem', textAlign: 'center', color: 'var(--emerald)', fontWeight: '700' }}>{p.avg_score}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                )}
+                                <p style={{ fontSize: '0.75rem', color: '#888', textAlign: 'center', marginTop: '1rem' }}>
+                                    Sorted by average score · Your row is highlighted
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Stats Modal */}
                     {showStatsModal && (

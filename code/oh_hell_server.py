@@ -720,6 +720,38 @@ def get_stats():
         logger.exception("ERROR in get_stats")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/leaderboard', methods=['GET'])
+def get_leaderboard():
+    """Returns top players sorted by average score (min 1 game played)."""
+    try:
+        if _firestore_available:
+            docs = _db.collection('player_stats').stream()
+            players = [doc.to_dict() | {'user_id': doc.id} for doc in docs]
+        else:
+            with _stats_lock:
+                stats = load_stats_local()
+            players = [v | {'user_id': k} for k, v in stats.items()]
+
+        # Filter to players with at least 1 game, compute avg, sort by avg desc
+        leaderboard = []
+        for p in players:
+            if p.get('games_played', 0) < 1:
+                continue
+            avg = round(p['total_score'] / p['games_played'], 1)
+            leaderboard.append({
+                'username': p.get('username', 'Anonymous'),
+                'user_id_snippet': p['user_id'][-6:],
+                'games_played': p['games_played'],
+                'wins': p['wins'],
+                'avg_score': avg,
+            })
+
+        leaderboard.sort(key=lambda x: x['avg_score'], reverse=True)
+        return jsonify(leaderboard[:50])  # top 50
+    except Exception as e:
+        logger.exception("ERROR in get_leaderboard")
+        return jsonify({'error': str(e)}), 500
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
