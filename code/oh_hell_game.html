@@ -522,6 +522,116 @@
             background: var(--cream);
         }
         
+        /* Stats & Rules buttons */
+        .header-btn {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 0.4rem 1rem;
+            border: 1.5px solid var(--gold);
+            background: transparent;
+            color: var(--gold);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .header-btn:hover {
+            background: var(--gold);
+            color: var(--forest);
+        }
+        .header-btns {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        /* Stats modal overlay */
+        .overlay-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;
+        }
+        .overlay-content {
+            background: var(--cream);
+            border-radius: 12px;
+            padding: 2.5rem;
+            max-width: 480px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            color: var(--forest);
+            position: relative;
+        }
+        .overlay-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(13,40,24,0.1);
+            font-size: 1.1rem;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-row-label { font-weight: 600; color: var(--forest); }
+        .stat-row-value { font-weight: 700; color: var(--emerald); font-size: 1.3rem; }
+        .close-btn {
+            position: absolute;
+            top: 1rem; right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--forest);
+            line-height: 1;
+        }
+        .rules-section { margin-bottom: 1.2rem; }
+        .rules-section h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 0.4rem;
+        }
+        .rules-section p {
+            font-size: 0.95rem;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+        }
+        /* Username input */
+        .username-input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            border: 2px solid var(--forest);
+            border-radius: 6px;
+            background: white;
+            color: var(--forest);
+            margin-bottom: 1.5rem;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .username-input:focus {
+            outline: none;
+            border-color: var(--gold);
+        }
+
         /* Bidding modal */
         .modal {
             position: fixed;
@@ -828,6 +938,19 @@
             const [trickWinner, setTrickWinner] = useState(null);
             const [pendingContinue, setPendingContinue] = useState(null);
             const [sessionId, setSessionId] = useState(null); // unique session per game
+            const [username, setUsername] = useState(() => localStorage.getItem('ohHellUsername') || '');
+            const [userId, setUserId] = useState(() => {
+                let id = localStorage.getItem('ohHellUserId');
+                if (!id) {
+                    id = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+                    localStorage.setItem('ohHellUserId', id);
+                }
+                return id;
+            });
+            const [showStatsModal, setShowStatsModal] = useState(false);
+            const [showRulesModal, setShowRulesModal] = useState(false);
+            const [statsData, setStatsData] = useState(null);
+            const [usernameInput, setUsernameInput] = useState(() => localStorage.getItem('ohHellUsername') || '');
             
             // Enter key to dismiss trick winner overlay
             useEffect(() => {
@@ -851,6 +974,34 @@
             }, [gameState]);
             
             // Initialize game
+            async function fetchStats() {
+                try {
+                    const res = await fetch(`${API_URL}/stats?user_id=${encodeURIComponent(userId)}`);
+                    const data = await res.json();
+                    setStatsData(data);
+                } catch (e) {
+                    setStatsData(null);
+                }
+                setShowStatsModal(true);
+            }
+
+            async function recordGameResult(finalScore, isWinner) {
+                try {
+                    await fetch(`${API_URL}/record_game`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: userId,
+                            username: username || 'Anonymous',
+                            score: finalScore,
+                            won: isWinner,
+                        })
+                    });
+                } catch (e) {
+                    console.error('Failed to record game result:', e);
+                }
+            }
+
             async function startGame(players) {
                 console.log('Starting game with', players, 'players...');
                 try {
@@ -1048,7 +1199,10 @@
                     setTimeout(() => {
                         if (currentState.gameOver) {
                             const winnerName = currentState.winner === 0 ? 'You' : `Player ${currentState.winner + 1}`;
+                            const myScore = currentState.cumulativeScores[0];
+                            const isWinner = currentState.winner === 0;
                             setStatusMessage(`🎉 Game Over! ${winnerName} won with ${currentState.cumulativeScores[currentState.winner]} points! 🎉`);
+                            recordGameResult(myScore, isWinner);
                         } else {
                             setStatusMessage('Round complete! Starting next round...');
                             setTimeout(() => {
@@ -1088,6 +1242,17 @@
                     <div className="modal">
                         <div className="modal-content">
                             <div className="modal-title">Oh Hell</div>
+                            <div style={{ color: 'var(--forest)', marginBottom: '0.5rem', fontSize: '1rem', fontWeight: '600' }}>
+                                Your name:
+                            </div>
+                            <input
+                                className="username-input"
+                                type="text"
+                                placeholder="Enter your name..."
+                                value={usernameInput}
+                                onChange={e => setUsernameInput(e.target.value)}
+                                maxLength={20}
+                            />
                             <div style={{ color: 'var(--forest)', marginBottom: '2rem', fontSize: '1.2rem', fontWeight: '600' }}>
                                 Select number of players:
                             </div>
@@ -1097,7 +1262,12 @@
                                         key={n}
                                         className="bid-btn"
                                         style={{ width: '80px', height: '80px', fontSize: '2rem' }}
-                                        onClick={() => startGame(n)}
+                                        onClick={() => {
+                                            const name = usernameInput.trim() || 'Anonymous';
+                                            setUsername(name);
+                                            localStorage.setItem('ohHellUsername', name);
+                                            startGame(n);
+                                        }}
                                     >
                                         {n}
                                     </button>
@@ -1138,6 +1308,95 @@
             
             return (
                 <>
+                    {/* Stats & Rules buttons */}
+                    <div className="header-btns">
+                        <button className="header-btn" onClick={fetchStats}>Stats</button>
+                        <button className="header-btn" onClick={() => setShowRulesModal(true)}>Rules</button>
+                    </div>
+
+                    {/* Stats Modal */}
+                    {showStatsModal && (
+                        <div className="overlay-modal" onClick={() => setShowStatsModal(false)}>
+                            <div className="overlay-content" onClick={e => e.stopPropagation()}>
+                                <button className="close-btn" onClick={() => setShowStatsModal(false)}>×</button>
+                                <div className="overlay-title">📊 Your Stats</div>
+                                {statsData ? (
+                                    <>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Player</span>
+                                            <span className="stat-row-value">{statsData.username || username || 'Anonymous'}</span>
+                                        </div>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Games Played</span>
+                                            <span className="stat-row-value">{statsData.games_played}</span>
+                                        </div>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Wins</span>
+                                            <span className="stat-row-value">{statsData.wins}</span>
+                                        </div>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Win Rate</span>
+                                            <span className="stat-row-value">
+                                                {statsData.games_played > 0
+                                                    ? Math.round(statsData.wins / statsData.games_played * 100) + '%'
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Avg Score</span>
+                                            <span className="stat-row-value">{statsData.avg_score ?? '—'}</span>
+                                        </div>
+                                        <div className="stat-row">
+                                            <span className="stat-row-label">Total Score</span>
+                                            <span className="stat-row-value">{statsData.total_score ?? '—'}</span>
+                                        </div>
+                                        {statsData.games_played === 0 && (
+                                            <p style={{ textAlign: 'center', color: '#666', marginTop: '1rem' }}>
+                                                Complete a game to see your stats!
+                                            </p>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p style={{ textAlign: 'center' }}>Loading...</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Rules Modal */}
+                    {showRulesModal && (
+                        <div className="overlay-modal" onClick={() => setShowRulesModal(false)}>
+                            <div className="overlay-content" onClick={e => e.stopPropagation()}>
+                                <button className="close-btn" onClick={() => setShowRulesModal(false)}>×</button>
+                                <div className="overlay-title">📖 How to Play</div>
+                                <div className="rules-section">
+                                    <h3>Objective</h3>
+                                    <p>Score the most points over 19 rounds. Points are earned by winning exactly the number of tricks you bid each round.</p>
+                                </div>
+                                <div className="rules-section">
+                                    <h3>Rounds</h3>
+                                    <p>The game goes 10→9→8→7→6→5→4→3→2→1→2→3→4→5→6→7→8→9→10 tricks. Each round, one card is flipped to determine the trump suit.</p>
+                                </div>
+                                <div className="rules-section">
+                                    <h3>Bidding</h3>
+                                    <p>Before play begins, each player bids how many tricks they expect to win. The last bidder cannot bid a number that would make the total bids equal the number of tricks — someone must be wrong!</p>
+                                </div>
+                                <div className="rules-section">
+                                    <h3>Playing</h3>
+                                    <p>Players must follow the lead suit if possible. If you can't follow suit, you may play any card including trump. The highest trump wins the trick; if no trump is played, the highest card of the lead suit wins.</p>
+                                </div>
+                                <div className="rules-section">
+                                    <h3>Scoring</h3>
+                                    <p>If you win exactly your bid: <strong>10 + bid</strong> points. If you miss your bid: <strong>0</strong> points.</p>
+                                </div>
+                                <div className="rules-section">
+                                    <h3>Card Ranks</h3>
+                                    <p>2 (low) → 3 → 4 → 5 → 6 → 7 → 8 → 9 → T → J → Q → K → A (high)</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="game-table">
                         {/* Trump indicator */}
                         <div className="trump-indicator">
@@ -1186,7 +1445,7 @@
                                 >
                                     <div className={`player-info ${currentPlayer === idx ? 'active' : ''}`}>
                                         <div className="player-name-display">
-                                            {idx === 0 ? 'You' : `Player ${idx + 1}`}
+                                            {idx === 0 ? (username || 'You') : `Player ${idx + 1}`}
                                         </div>
                                         <div className="player-stats">
                                             <div className="stat">

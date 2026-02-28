@@ -21,6 +21,7 @@ import time
 import threading
 import logging
 import sys
+import json
 
 # Configure logging to stdout so Railway captures it
 logging.basicConfig(
@@ -65,56 +66,69 @@ def _load_csv(relative_path):
     full_path = os.path.join(_script_dir, relative_path)
     return pd.read_csv(full_path)
 
-print("Preloading probability tables...")
-try:
-    _side_one_df = _load_csv("probabilityData/sideOneTrickProbs.csv")
-    _trump_one_df = _load_csv("probabilityData/trumpOneTrickProbs.csv")
-    # Convert to dict keyed by (num_players, player_order, rank) for O(1) lookup
-    SIDE_ONE_TRICK_PROBS = {
-        (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
-        for _, r in _side_one_df.iterrows()
-    }
-    TRUMP_ONE_TRICK_PROBS = {
-        (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
-        for _, r in _trump_one_df.iterrows()
-    }
-    del _side_one_df, _trump_one_df
-    print("✓ One-trick probability tables loaded")
-except Exception as e:
-    print(f"WARNING: Could not load one-trick prob tables: {e}")
-    SIDE_ONE_TRICK_PROBS = {}
-    TRUMP_ONE_TRICK_PROBS = {}
+# ─── Preload tables once at startup ───────────────────────────────────────────
+import pandas as pd
+import os
 
-# Eagerly preload all round/player combinations used in a full game
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+
+def _load_csv(relative_path):
+    full_path = os.path.join(_script_dir, relative_path)
+    return pd.read_csv(full_path)
+
+# Tables stored here — empty until background thread finishes loading
+SIDE_ONE_TRICK_PROBS = {}
+TRUMP_ONE_TRICK_PROBS = {}
 _prob_table_cache = {}
-_all_trick_counts = list(range(1, 11))
-_all_player_counts = [3, 4]
+_tables_ready = False
 
-for _t in _all_trick_counts:
-    for _p in _all_player_counts:
-        try:
-            _df  = _load_csv(f"probabilityData/{_t}Tricks{_p}PSideSuit.csv")
-            _df2 = _load_csv(f"probabilityData/{_t}Tricks{_p}PTrumpSuit.csv")
-            # Convert to dict keyed by (numMySuit, numAtLeastOppSuit)
-            _side_dict = {
-                (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
-                for _, r in _df.iterrows()
-            }
-            _trump_dict = {
-                (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
-                for _, r in _df2.iterrows()
-            }
-            del _df, _df2
-            _prob_table_cache[(_t, _p)] = (_side_dict, _trump_dict)
-            print(f"✓ Loaded prob tables: {_t} tricks, {_p} players")
-        except Exception as e:
-            print(f"WARNING: Missing prob tables {_t}T {_p}P: {e}")
-            _prob_table_cache[(_t, _p)] = ({}, {})
+def _load_all_tables():
+    global SIDE_ONE_TRICK_PROBS, TRUMP_ONE_TRICK_PROBS, _prob_table_cache, _tables_ready
+    print("Preloading probability tables in background...")
+    try:
+        _side_one_df = _load_csv("probabilityData/sideOneTrickProbs.csv")
+        _trump_one_df = _load_csv("probabilityData/trumpOneTrickProbs.csv")
+        SIDE_ONE_TRICK_PROBS = {
+            (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
+            for _, r in _side_one_df.iterrows()
+        }
+        TRUMP_ONE_TRICK_PROBS = {
+            (int(r['num_players']), int(r['player_order']), int(r['rank'])): float(r['probability'])
+            for _, r in _trump_one_df.iterrows()
+        }
+        del _side_one_df, _trump_one_df
+        print("✓ One-trick probability tables loaded")
+    except Exception as e:
+        print(f"WARNING: Could not load one-trick prob tables: {e}")
+
+    for _t in range(1, 11):
+        for _p in [3, 4]:
+            try:
+                _df  = _load_csv(f"probabilityData/{_t}Tricks{_p}PSideSuit.csv")
+                _df2 = _load_csv(f"probabilityData/{_t}Tricks{_p}PTrumpSuit.csv")
+                _side_dict = {
+                    (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
+                    for _, r in _df.iterrows()
+                }
+                _trump_dict = {
+                    (int(r['numMySuit']), int(r['numAtLeastOppSuit'])): float(r['probability'])
+                    for _, r in _df2.iterrows()
+                }
+                del _df, _df2
+                _prob_table_cache[(_t, _p)] = (_side_dict, _trump_dict)
+                print(f"✓ Loaded prob tables: {_t} tricks, {_p} players")
+            except Exception as e:
+                print(f"WARNING: Missing prob tables {_t}T {_p}P: {e}")
+                _prob_table_cache[(_t, _p)] = ({}, {})
+
+    _tables_ready = True
+    print("✓ All probability tables ready")
+
+# Start loading in background so server can respond to health checks immediately
+threading.Thread(target=_load_all_tables, daemon=True).start()
 
 def get_prob_tables_cached(tricks_in_round, num_players):
     return _prob_table_cache.get((tricks_in_round, num_players), ({}, {}))
-
-print("✓ All probability tables preloaded as dicts — pandas no longer needed at runtime")
 
 # Patch OhHellState lookup methods to use plain dict instead of DataFrame filtering
 # This eliminates pandas memory spikes during gameplay
@@ -271,6 +285,7 @@ def run_bidding_phase(state, human_player=0):
     return messages
 
 def run_playing_phase(state, human_player=0, iterations=2500):
+    tricks = state.tricksInRound
     messages = []
     if state.GetMoves() == 0:
         return messages
@@ -361,9 +376,21 @@ def index():
     except FileNotFoundError:
         return "<h1>Error</h1><p>oh_hell_game.html not found.</p>", 404
 
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok', 'tables_ready': _tables_ready})
+
 @app.route('/start', methods=['POST'])
 def start_game():
     try:
+        # Wait up to 30s for tables to finish loading if needed
+        if not _tables_ready:
+            for _ in range(60):
+                if _tables_ready:
+                    break
+                time.sleep(0.5)
+            if not _tables_ready:
+                return jsonify({'error': 'Server is still loading, please try again in a moment.'}), 503
         data = request.json
         num_players = data.get('numPlayers', 4)
         human_player = data.get('humanPlayer', 0)
@@ -588,6 +615,81 @@ def get_state():
     add_progress(response, game)
 
     return jsonify(response)
+
+# ─── Stats storage ─────────────────────────────────────────────────────────────
+
+STATS_FILE = os.path.join(_script_dir, 'player_stats.json')
+_stats_lock = threading.Lock()
+
+def load_stats():
+    try:
+        with open(STATS_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_stats(stats):
+    with open(STATS_FILE, 'w') as f:
+        json.dump(stats, f)
+
+@app.route('/record_game', methods=['POST'])
+def record_game():
+    """Called when a game completes. Records result for the player."""
+    try:
+        data = request.json
+        username = data.get('username', '').strip()
+        user_id = data.get('user_id', '').strip()
+        score = data.get('score', 0)
+        won = data.get('won', False)
+
+        if not user_id:
+            return jsonify({'error': 'Missing user_id'}), 400
+
+        with _stats_lock:
+            stats = load_stats()
+            if user_id not in stats:
+                stats[user_id] = {
+                    'username': username,
+                    'games_played': 0,
+                    'wins': 0,
+                    'total_score': 0,
+                }
+            entry = stats[user_id]
+            entry['username'] = username  # update in case they changed it
+            entry['games_played'] += 1
+            entry['total_score'] += score
+            if won:
+                entry['wins'] += 1
+            save_stats(stats)
+
+        return jsonify({'ok': True})
+    except Exception as e:
+        logger.exception("ERROR in record_game")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    """Returns stats for a given user_id."""
+    try:
+        user_id = request.args.get('user_id', '').strip()
+        if not user_id:
+            return jsonify({'error': 'Missing user_id'}), 400
+        with _stats_lock:
+            stats = load_stats()
+        entry = stats.get(user_id)
+        if not entry:
+            return jsonify({'games_played': 0, 'wins': 0, 'avg_score': 0, 'total_score': 0})
+        avg = round(entry['total_score'] / entry['games_played'], 1) if entry['games_played'] > 0 else 0
+        return jsonify({
+            'username': entry['username'],
+            'games_played': entry['games_played'],
+            'wins': entry['wins'],
+            'total_score': entry['total_score'],
+            'avg_score': avg,
+        })
+    except Exception as e:
+        logger.exception("ERROR in get_stats")
+        return jsonify({'error': str(e)}), 500
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
