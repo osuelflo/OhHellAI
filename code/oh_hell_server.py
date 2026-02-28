@@ -256,7 +256,7 @@ def state_to_json(state, human_player=0):
 
     return result
 
-def run_bidding_phase(state, human_player=0):
+def run_bidding_phase(state, human_player=0, game_id=None, round_num=None):
     messages = []
     while any(state.haventBid):
         current = state.playerToMove
@@ -279,12 +279,14 @@ def run_bidding_phase(state, human_player=0):
             p = state.GetNextPlayer(p)
 
         state.Bid(bids_in_order, position, current)
+        if game_id:
+            _log_bid_async(game_id, state, current, state.bids[current], round_num)
         messages.append(f"Player {current + 1} bid {state.bids[current]}")
         state.playerToMove = state.GetNextPlayer(state.playerToMove)
 
     return messages
 
-def run_playing_phase(state, human_player=0, iterations=2500):
+def run_playing_phase(state, human_player=0, iterations=2500, game_id=None, round_num=None):
     tricks = state.tricksInRound
     messages = []
     if state.GetMoves() == 0:
@@ -317,8 +319,12 @@ def run_playing_phase(state, human_player=0, iterations=2500):
 
     card_str = CardHelper.to_str(m)
     trick_before = list(state.currentTrick)
-    trick_before.append((current, m))
 
+    # Log AI play to BigQuery before DoMove (hand still intact)
+    if game_id:
+        _log_play_async(game_id, state, current, m, list(state.currentTrick), round_num)
+
+    trick_before.append((current, m))
     state.DoMove(m)
     messages.append(f"Player {current + 1} played {card_str}")
 
@@ -355,6 +361,7 @@ def add_round_over(response, game, state):
             winner = max(range(len(game['cumulative_scores'])),
                          key=lambda i: game['cumulative_scores'][i])
             response['winner'] = winner
+            _log_game_result_async(game['game_id'], game['num_players'], game['cumulative_scores'], winner)
         else:
             response['nextRound'] = game['current_round'] + 1
 
@@ -408,7 +415,8 @@ def start_game():
             'current_round': 0,
             'cumulative_scores': [0] * num_players,
             'dealer': random.randint(0, num_players - 1),
-            'last_active': time.time()
+            'last_active': time.time(),
+            'game_id': str(uuid.uuid4()),  # unique ID for analytics
         }
 
         game = game_instances[session_id]
@@ -418,7 +426,7 @@ def start_game():
         game['current_state'] = state
 
         state.playerToMove = state.GetNextPlayer(state.dealer)
-        messages = run_bidding_phase(state, human_player)
+        messages = run_bidding_phase(state, human_player, game['game_id'], 1)
 
         response = state_to_json(state, human_player)
         response['session_id'] = session_id  # ← send back to client
@@ -460,8 +468,11 @@ def submit_bid():
         state.haventBid[player] = False
         state.playerToMove = state.GetNextPlayer(state.playerToMove)
 
+        # Log human bid to BigQuery
+        _log_bid_async(game['game_id'], state, player, bid, game['current_round'] + 1)
+
         messages = [f"You bid {bid}"]
-        messages.extend(run_bidding_phase(state, player))
+        messages.extend(run_bidding_phase(state, player, game['game_id'], game['current_round'] + 1))
 
         all_bids_placed = not any(state.haventBid)
         if all_bids_placed:
@@ -469,7 +480,7 @@ def submit_bid():
                 state.adjustProbsBids()
             state.playerToMove = state.GetNextPlayer(state.dealer)
             messages.append("Bidding complete! Let's play!")
-            messages.extend(run_playing_phase(state, player))
+            messages.extend(run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round'] + 1))
 
         response = state_to_json(state, player)
         response['session_id'] = session_id
@@ -506,6 +517,9 @@ def play_card():
         # Capture trick before the move in case human completes it
         trick_before = list(state.currentTrick)
         trick_before.append((player, card))
+
+        # Log human play to BigQuery
+        _log_play_async(game['game_id'], state, player, card, list(state.currentTrick), game['current_round'] + 1)
 
         state.DoMove(card)
         messages = [f"You played {CardHelper.to_str(card)}"]
@@ -547,7 +561,7 @@ def advance_ai():
         state = game['current_state']
         player = game['human_player']
 
-        messages = run_playing_phase(state, player)
+        messages = run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round'] + 1)
 
         response = state_to_json(state, player)
         response['session_id'] = session_id
@@ -586,7 +600,7 @@ def next_round():
         game['current_state'] = state
 
         state.playerToMove = state.GetNextPlayer(state.dealer)
-        messages = run_bidding_phase(state, game['human_player'])
+        messages = run_bidding_phase(state, game['human_player'], game['game_id'], game['current_round'] + 1)
 
         response = state_to_json(state, game['human_player'])
         response['session_id'] = session_id
@@ -732,7 +746,6 @@ def get_leaderboard():
                 stats = load_stats_local()
             players = [v | {'user_id': k} for k, v in stats.items()]
 
-        # Filter to players with at least 1 game, compute avg, sort by avg desc
         leaderboard = []
         for p in players:
             if p.get('games_played', 0) < 1:
@@ -747,10 +760,132 @@ def get_leaderboard():
             })
 
         leaderboard.sort(key=lambda x: x['avg_score'], reverse=True)
-        return jsonify(leaderboard[:50])  # top 50
+        return jsonify(leaderboard[:50])
     except Exception as e:
         logger.exception("ERROR in get_leaderboard")
         return jsonify({'error': str(e)}), 500
+
+# ─── BigQuery analytics logging ────────────────────────────────────────────────
+
+try:
+    from google.cloud import bigquery as _bigquery
+    _bq = _bigquery.Client(project='project-72eca311-a412-4fda-9be')
+    _bq_plays_table   = 'project-72eca311-a412-4fda-9be.ohhell_analytics.plays'
+    _bq_bids_table    = 'project-72eca311-a412-4fda-9be.ohhell_analytics.bids'
+    _bq_results_table = 'project-72eca311-a412-4fda-9be.ohhell_analytics.game_results'
+    _bigquery_available = True
+    print("✓ BigQuery connected")
+except Exception as e:
+    print(f"WARNING: BigQuery not available: {e}")
+    _bq = None
+    _bigquery_available = False
+
+def _hand_to_str_list(hand_int):
+    """Convert integer hand bitmask to list of card strings e.g. ['5D', 'AH']"""
+    return CardHelper.to_list(hand_int) if hand_int else []
+
+def _cards_to_str(card_list):
+    """Convert list of card ints to comma-separated string of card names."""
+    return ','.join(CardHelper.to_str(c) for c in card_list)
+
+def _trick_to_str(trick):
+    """Convert currentTrick list of (player, card) to string e.g. '0:5D,1:AH'"""
+    return ','.join(f"{p}:{CardHelper.to_str(c)}" for p, c in trick)
+
+def _log_play_async(game_id, state, player, card, trick_before, round_num):
+    """Log a single card play to BigQuery in a background thread."""
+    if not _bigquery_available:
+        return
+    def _do_log():
+        try:
+            tricks_taken = state.tricksTaken[player] if hasattr(state, 'tricksTaken') and state.tricksTaken else 0
+            bid = state.bids[player] if state.bids and len(state.bids) > player else -1
+            tricks_left = CardHelper.get_num_cards(state.playerHands[player])
+            hand_str = _cards_to_str(CardHelper.to_list(state.playerHands[player]))
+            trick_str = _trick_to_str(trick_before)
+            row = [{
+                'game_id': game_id,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
+                'num_players': state.numberOfPlayers,
+                'round': round_num,
+                'tricks_in_round': state.tricksInRound,
+                'trick_num': state.tricksInRound - tricks_left,
+                'player': player,
+                'card': CardHelper.to_str(card),
+                'current_trick': trick_str,
+                'tricks_left': tricks_left,
+                'player_tricks_won': tricks_taken,
+                'player_bid': bid,
+                'trump_suit': state.trumpSuit if state.trumpSuit is not None else -1,
+                'player_hand': hand_str,
+            }]
+            errors = _bq.insert_rows_json(_bq_plays_table, row)
+            if errors:
+                print(f"BigQuery plays insert errors: {errors}")
+        except Exception as e:
+            print(f"BigQuery play log error: {e}")
+    threading.Thread(target=_do_log, daemon=True).start()
+
+def _log_bid_async(game_id, state, player, bid, round_num):
+    """Log a single bid to BigQuery in a background thread."""
+    if not _bigquery_available:
+        return
+    def _do_log():
+        try:
+            # Build previous bids in bidding order
+            prev_bids = []
+            p = state.GetNextPlayer(state.dealer)
+            for _ in range(state.numberOfPlayers):
+                if p == player:
+                    break
+                if not state.haventBid[p]:
+                    prev_bids.append(f"{p}:{state.bids[p]}")
+                p = state.GetNextPlayer(p)
+            hand_str = _cards_to_str(CardHelper.to_list(state.playerHands[player]))
+            expected_bid = round(state.tricksInRound / state.numberOfPlayers, 2)
+            row = [{
+                'game_id': game_id,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
+                'num_players': state.numberOfPlayers,
+                'round': round_num,
+                'tricks_in_round': state.tricksInRound,
+                'player': player,
+                'bid': bid,
+                'previous_bids': ','.join(prev_bids),
+                'player_hand': hand_str,
+                'expected_bid': expected_bid,
+            }]
+            errors = _bq.insert_rows_json(_bq_bids_table, row)
+            if errors:
+                print(f"BigQuery bids insert errors: {errors}")
+        except Exception as e:
+            print(f"BigQuery bid log error: {e}")
+    threading.Thread(target=_do_log, daemon=True).start()
+
+def _log_game_result_async(game_id, num_players, cumulative_scores, winner):
+    """Log final game result to BigQuery in a background thread."""
+    if not _bigquery_available:
+        return
+    def _do_log():
+        try:
+            # Always log 4 player score columns; N/A if player doesn't exist
+            scores = [cumulative_scores[i] if i < num_players else None for i in range(4)]
+            row = [{
+                'game_id': game_id,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
+                'num_players': num_players,
+                'player_0_score': scores[0],
+                'player_1_score': scores[1],
+                'player_2_score': scores[2],
+                'player_3_score': scores[3],
+                'winning_player': winner,
+            }]
+            errors = _bq.insert_rows_json(_bq_results_table, row)
+            if errors:
+                print(f"BigQuery game_results insert errors: {errors}")
+        except Exception as e:
+            print(f"BigQuery game result log error: {e}")
+    threading.Thread(target=_do_log, daemon=True).start()
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 

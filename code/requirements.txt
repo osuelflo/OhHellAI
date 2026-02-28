@@ -4,3 +4,4 @@ gunicorn
 numpy
 pandas
 google-cloud-firestore
+google-cloud-bigquery
