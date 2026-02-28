@@ -616,19 +616,30 @@ def get_state():
 
     return jsonify(response)
 
-# ─── Stats storage ─────────────────────────────────────────────────────────────
+# ─── Stats storage (Firestore + local fallback) ────────────────────────────────
 
+try:
+    from google.cloud import firestore as _firestore
+    _db = _firestore.Client(project='project-72eca311-a412-4fda-9be')
+    _firestore_available = True
+    print("✓ Firestore connected")
+except Exception as e:
+    print(f"WARNING: Firestore not available, using local JSON fallback: {e}")
+    _db = None
+    _firestore_available = False
+
+# Local JSON fallback for development
 STATS_FILE = os.path.join(_script_dir, 'player_stats.json')
 _stats_lock = threading.Lock()
 
-def load_stats():
+def load_stats_local():
     try:
         with open(STATS_FILE, 'r') as f:
             return json.load(f)
     except:
         return {}
 
-def save_stats(stats):
+def save_stats_local(stats):
     with open(STATS_FILE, 'w') as f:
         json.dump(stats, f)
 
@@ -637,7 +648,7 @@ def record_game():
     """Called when a game completes. Records result for the player."""
     try:
         data = request.json
-        username = data.get('username', '').strip()
+        username = data.get('username', '').strip() or 'Anonymous'
         user_id = data.get('user_id', '').strip()
         score = data.get('score', 0)
         won = data.get('won', False)
@@ -645,22 +656,31 @@ def record_game():
         if not user_id:
             return jsonify({'error': 'Missing user_id'}), 400
 
-        with _stats_lock:
-            stats = load_stats()
-            if user_id not in stats:
-                stats[user_id] = {
-                    'username': username,
-                    'games_played': 0,
-                    'wins': 0,
-                    'total_score': 0,
-                }
-            entry = stats[user_id]
-            entry['username'] = username  # update in case they changed it
+        if _firestore_available:
+            ref = _db.collection('player_stats').document(user_id)
+            doc = ref.get()
+            if doc.exists:
+                entry = doc.to_dict()
+            else:
+                entry = {'username': username, 'games_played': 0, 'wins': 0, 'total_score': 0}
+            entry['username'] = username
             entry['games_played'] += 1
             entry['total_score'] += score
             if won:
                 entry['wins'] += 1
-            save_stats(stats)
+            ref.set(entry)
+        else:
+            with _stats_lock:
+                stats = load_stats_local()
+                if user_id not in stats:
+                    stats[user_id] = {'username': username, 'games_played': 0, 'wins': 0, 'total_score': 0}
+                entry = stats[user_id]
+                entry['username'] = username
+                entry['games_played'] += 1
+                entry['total_score'] += score
+                if won:
+                    entry['wins'] += 1
+                save_stats_local(stats)
 
         return jsonify({'ok': True})
     except Exception as e:
@@ -674,14 +694,23 @@ def get_stats():
         user_id = request.args.get('user_id', '').strip()
         if not user_id:
             return jsonify({'error': 'Missing user_id'}), 400
-        with _stats_lock:
-            stats = load_stats()
-        entry = stats.get(user_id)
-        if not entry:
-            return jsonify({'games_played': 0, 'wins': 0, 'avg_score': 0, 'total_score': 0})
+
+        if _firestore_available:
+            ref = _db.collection('player_stats').document(user_id)
+            doc = ref.get()
+            if not doc.exists:
+                return jsonify({'games_played': 0, 'wins': 0, 'avg_score': 0, 'total_score': 0})
+            entry = doc.to_dict()
+        else:
+            with _stats_lock:
+                stats = load_stats_local()
+            entry = stats.get(user_id)
+            if not entry:
+                return jsonify({'games_played': 0, 'wins': 0, 'avg_score': 0, 'total_score': 0})
+
         avg = round(entry['total_score'] / entry['games_played'], 1) if entry['games_played'] > 0 else 0
         return jsonify({
-            'username': entry['username'],
+            'username': entry.get('username', ''),
             'games_played': entry['games_played'],
             'wins': entry['wins'],
             'total_score': entry['total_score'],
