@@ -50,7 +50,12 @@ except ImportError as e:
     exit(1)
 
 app = Flask(__name__, static_folder='static')
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": [
+    "https://ohhellai.com",
+    "https://www.ohhellai.com",
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+]}})
 
 app.config['DEBUG'] = False
 
