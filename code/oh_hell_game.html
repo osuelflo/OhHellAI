@@ -1522,11 +1522,15 @@
                                                 <th style={{padding:'0.5rem 0.4rem',textAlign:'center'}}>GP</th>
                                                 <th style={{padding:'0.5rem 0.4rem',textAlign:'center'}}>Wins</th>
                                                 <th style={{padding:'0.5rem 0.4rem',textAlign:'center'}}>Avg</th>
+                                                <th style={{padding:'0.5rem 0.4rem',textAlign:'center'}}>Bid±</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {leaderboardData.map((p,i) => {
                                                 const isMe = p.username.toLowerCase()===username.toLowerCase();
+                                                const bidDelta = p.avg_bid_delta != null
+                                                    ? (p.avg_bid_delta > 0 ? '+' : '') + p.avg_bid_delta
+                                                    : '—';
                                                 return (
                                                     <tr key={i} style={{borderBottom:'1px solid rgba(13,40,24,0.1)',
                                                         background:isMe?'rgba(240,198,116,0.15)':'transparent',
@@ -1538,6 +1542,10 @@
                                                         <td style={{padding:'0.6rem 0.4rem',textAlign:'center',color:'var(--forest)'}}>{p.games_played}</td>
                                                         <td style={{padding:'0.6rem 0.4rem',textAlign:'center',color:'var(--forest)'}}>{p.wins}</td>
                                                         <td style={{padding:'0.6rem 0.4rem',textAlign:'center',color:'var(--emerald)',fontWeight:'700'}}>{p.avg_score}</td>
+                                                        <td style={{padding:'0.6rem 0.4rem',textAlign:'center',fontWeight:'700',
+                                                            color: p.avg_bid_delta > 0 ? '#c0392b' : p.avg_bid_delta < 0 ? '#2980b9' : 'var(--forest)'}}>
+                                                            {bidDelta}
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}

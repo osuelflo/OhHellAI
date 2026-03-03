@@ -428,6 +428,35 @@ def login():
     except Exception as e:
         logger.exception("ERROR in login"); return jsonify({'error':str(e)}), 500
 
+@app.route('/record_bid_delta', methods=['POST'])
+def record_bid_delta():
+    try:
+        data = request.json
+        username   = data.get('username', '').strip() or 'Anonymous'
+        bid_delta  = data.get('bid_delta', 0)
+        key = username.lower()
+        if _firestore_available:
+            ref = _db.collection('player_stats').document(key)
+            doc = ref.get()
+            entry = doc.to_dict() if doc.exists else {
+                'username':username,'games_played':0,'wins':0,
+                'total_score':0,'total_bid_delta':0,'total_bid_count':0
+            }
+            entry['total_bid_delta'] = entry.get('total_bid_delta', 0) + bid_delta
+            entry['total_bid_count'] = entry.get('total_bid_count', 0) + 1
+            ref.set(entry)
+        else:
+            with _stats_lock:
+                stats = _load_json(STATS_FILE)
+                if key not in stats:
+                    stats[key] = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bid_delta':0,'total_bid_count':0}
+                stats[key]['total_bid_delta'] = stats[key].get('total_bid_delta', 0) + bid_delta
+                stats[key]['total_bid_count'] = stats[key].get('total_bid_count', 0) + 1
+                _save_json(STATS_FILE, stats)
+        return jsonify({'ok': True})
+    except Exception as e:
+        logger.exception("ERROR in record_bid_delta"); return jsonify({'error': str(e)}), 500
+
 @app.route('/record_game', methods=['POST'])
 def record_game():
     try:
@@ -435,8 +464,8 @@ def record_game():
         username   = data.get('username','').strip() or 'Anonymous'
         score      = data.get('score', 0)
         won        = data.get('won', False)
-        total_bid_delta = data.get('total_bid_delta', 0)
-        bid_count  = data.get('bid_count', 0)
+        total_bid_delta = 0  # tracked live via /record_bid_delta
+        bid_count  = 0
         key = username.lower()
         empty = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bid_delta':0,'total_bid_count':0}
         if _firestore_available:
@@ -494,8 +523,11 @@ def get_leaderboard():
         for p in players:
             gp = p.get('games_played',0)
             if gp<1: continue
+            bc = p.get('total_bid_count', 0)
+            avg_bid_delta = round(p.get('total_bid_delta',0)/bc, 2) if bc>0 else None
             board.append({'username':p.get('username','Anonymous'),'games_played':gp,
-                          'wins':p['wins'],'avg_score':round(p['total_score']/gp,1)})
+                          'wins':p['wins'],'avg_score':round(p['total_score']/gp,1),
+                          'avg_bid_delta':avg_bid_delta})
         board.sort(key=lambda x: x['avg_score'], reverse=True)
         return jsonify(board[:50])
     except Exception as e:
