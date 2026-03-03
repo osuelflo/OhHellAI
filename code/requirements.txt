@@ -3,5 +3,6 @@ flask-cors
 gunicorn
 numpy
 pandas
+bcrypt
 google-cloud-firestore
 google-cloud-bigquery
