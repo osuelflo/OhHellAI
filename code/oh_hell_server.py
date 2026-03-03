@@ -388,7 +388,7 @@ def register():
             })
             _db.collection('player_stats').document(key).set({
                 'username': username, 'games_played':0, 'wins':0,
-                'total_score':0, 'total_bids':0, 'total_bid_count':0,
+                'total_score':0, 'total_bid_delta':0, 'total_bid_count':0,
             })
         else:
             with _stats_lock:
@@ -397,7 +397,7 @@ def register():
                 accounts[key] = {'username': username, 'password_hash': _hash_pw(password)}
                 _save_json(ACCOUNTS_FILE, accounts)
                 stats = _load_json(STATS_FILE)
-                stats[key] = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bids':0,'total_bid_count':0}
+                stats[key] = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bid_delta':0,'total_bid_count':0}
                 _save_json(STATS_FILE, stats)
         return jsonify({'ok':True,'username':username})
     except Exception as e:
@@ -435,15 +435,15 @@ def record_game():
         username   = data.get('username','').strip() or 'Anonymous'
         score      = data.get('score', 0)
         won        = data.get('won', False)
-        total_bids = data.get('total_bids', 0)
+        total_bid_delta = data.get('total_bid_delta', 0)
         bid_count  = data.get('bid_count', 0)
         key = username.lower()
-        empty = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bids':0,'total_bid_count':0}
+        empty = {'username':username,'games_played':0,'wins':0,'total_score':0,'total_bid_delta':0,'total_bid_count':0}
         if _firestore_available:
             ref = _db.collection('player_stats').document(key)
             doc = ref.get(); entry = doc.to_dict() if doc.exists else empty.copy()
             entry['username'] = username; entry['games_played']+=1; entry['total_score']+=score
-            entry['total_bids'] = entry.get('total_bids',0)+total_bids
+            entry['total_bid_delta'] = entry.get('total_bid_delta',0)+total_bid_delta
             entry['total_bid_count'] = entry.get('total_bid_count',0)+bid_count
             if won: entry['wins']+=1
             ref.set(entry)
@@ -452,7 +452,7 @@ def record_game():
                 stats = _load_json(STATS_FILE)
                 if key not in stats: stats[key] = empty.copy()
                 e = stats[key]; e['username']=username; e['games_played']+=1; e['total_score']+=score
-                e['total_bids']=e.get('total_bids',0)+total_bids; e['total_bid_count']=e.get('total_bid_count',0)+bid_count
+                e['total_bid_delta']=e.get('total_bid_delta',0)+total_bid_delta; e['total_bid_count']=e.get('total_bid_count',0)+bid_count
                 if won: e['wins']+=1
                 _save_json(STATS_FILE, stats)
         return jsonify({'ok':True})
@@ -467,18 +467,18 @@ def get_stats():
         key = username.lower()
         if _firestore_available:
             doc = _db.collection('player_stats').document(key).get()
-            if not doc.exists: return jsonify({'games_played':0,'wins':0,'avg_score':0,'total_score':0,'avg_bid':0})
+            if not doc.exists: return jsonify({'games_played':0,'wins':0,'avg_score':0,'total_score':0,'avg_bid_delta':0})
             entry = doc.to_dict()
         else:
             with _stats_lock: stats = _load_json(STATS_FILE)
             entry = stats.get(key)
-            if not entry: return jsonify({'games_played':0,'wins':0,'avg_score':0,'total_score':0,'avg_bid':0})
+            if not entry: return jsonify({'games_played':0,'wins':0,'avg_score':0,'total_score':0,'avg_bid_delta':0})
         gp = entry['games_played']
         avg_score = round(entry['total_score']/gp, 1) if gp>0 else 0
         bc = entry.get('total_bid_count',0)
-        avg_bid = round(entry.get('total_bids',0)/bc, 2) if bc>0 else 0
+        avg_bid_delta = round(entry.get('total_bid_delta',0)/bc, 2) if bc>0 else 0
         return jsonify({'username':entry.get('username',username),'games_played':gp,'wins':entry['wins'],
-                        'total_score':entry['total_score'],'avg_score':avg_score,'avg_bid':avg_bid})
+                        'total_score':entry['total_score'],'avg_score':avg_score,'avg_bid_delta':avg_bid_delta})
     except Exception as e:
         logger.exception("ERROR in get_stats"); return jsonify({'error':str(e)}), 500
 

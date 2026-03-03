@@ -938,6 +938,7 @@
             const [animatingCard, setAnimatingCard] = useState(null);
             const [trickWinner, setTrickWinner]  = useState(null);
             const [pendingContinue, setPendingContinue] = useState(null);
+            const [bidDeltaAcc, setBidDeltaAcc]  = useState({total: 0, count: 0}); // tracks bid - expected across game
             const [sessionId, setSessionId]      = useState(null);
 
             // ── Stats/UI state ──────────────────────────────────────────────
@@ -1013,14 +1014,14 @@
                 setShowLeaderboardModal(true);
             }
 
-            async function recordGameResult(finalScore, isWinner, bidsArr) {
+            async function recordGameResult(finalScore, isWinner, acc) {
                 try {
-                    const totalBids = bidsArr ? bidsArr.reduce((a,b)=>a+b,0) : 0;
-                    const bidCount  = bidsArr ? bidsArr.length : 0;
+                    const totalDelta = acc ? acc.total : 0;
+                    const bidCount   = acc ? acc.count : 0;
                     await fetch(`${API_URL}/record_game`, {
                         method:'POST', headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({username, score:finalScore, won:isWinner,
-                                             total_bids:totalBids, bid_count:bidCount})
+                                             total_bid_delta:totalDelta, bid_count:bidCount})
                     });
                 } catch(e) { console.error('Failed to record game:', e); }
             }
@@ -1039,6 +1040,7 @@
                     const data = await response.json();
                     setSessionId(data.session_id);
                     setGameState(data); setGameProgress(data.gameProgress);
+                    setBidDeltaAcc({total: 0, count: 0});
                     setStatusMessage(''); setScreen('game');
                 } catch(error) { setStatusMessage('Failed to start game'); }
             }
@@ -1046,6 +1048,13 @@
             async function submitBid(bid) {
                 setShowBidModal(false);
                 try {
+                    // Calculate delta: bid minus expected (tricks / players)
+                    const tricksInRound = gameState.tricksInRound;
+                    const numPlayers = gameState.players.length;
+                    const expected = tricksInRound / numPlayers;
+                    const delta = bid - expected;
+                    setBidDeltaAcc(prev => ({total: prev.total + delta, count: prev.count + 1}));
+
                     const response = await fetch(`${API_URL}/bid`, {
                         method:'POST', headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({session_id:sessionId, player:0, bid})
@@ -1129,7 +1138,7 @@
                     const myScore = data.cumulativeScores?.[0] ?? 0;
                     const isWinner = data.winner===0;
                     // Collect all bids made this game — we pass them accumulated from recordGameResult
-                    recordGameResult(myScore, isWinner, null);
+                    recordGameResult(myScore, isWinner, bidDeltaAcc);
                     setStatusMessage(isWinner ? '🏆 You won!' : `Game over! Winner: Player ${data.winner+1}`);
                 } else {
                     setStatusMessage(`Round over! Starting round ${data.nextRound}...`);
@@ -1340,8 +1349,12 @@
                                             <span className="stat-row-value">{statsData.total_score ?? '—'}</span>
                                         </div>
                                         <div className="stat-row">
-                                            <span className="stat-row-label">Avg Bid</span>
-                                            <span className="stat-row-value">{statsData.avg_bid ?? '—'}</span>
+                                            <span className="stat-row-label">Avg Bid vs Expected</span>
+                                            <span className="stat-row-value">
+                                                {statsData.avg_bid_delta != null && statsData.avg_bid_delta !== '—'
+                                                    ? (statsData.avg_bid_delta > 0 ? '+' : '') + statsData.avg_bid_delta
+                                                    : '—'}
+                                            </span>
                                         </div>
                                         {statsData.games_played===0 && (
                                             <p style={{textAlign:'center',color:'#666',marginTop:'1rem'}}>
