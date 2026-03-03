@@ -18,6 +18,71 @@
             --felt: #0d4a5e;
             --card-bg: #ffffff;
             --text-dark: #1a1a1a;
+            --bg-gradient-inner: #0d3348;
+            --bg-gradient-outer: #050f18;
+        }
+
+        /* Theme picker */
+        .theme-picker-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;
+        }
+        .theme-picker-content {
+            background: var(--cream);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 580px;
+            max-height: 85vh;
+            overflow-y: auto;
+            color: var(--forest);
+            position: relative;
+        }
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        .theme-option {
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .theme-option:hover { transform: scale(1.02); }
+        .theme-option.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
+        .theme-swatch {
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        .theme-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .theme-name {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 0.4rem;
+            background: rgba(0,0,0,0.15);
         }
         
         * {
@@ -32,8 +97,8 @@
 
         body {
             font-family: 'Lato', sans-serif;
-            background: radial-gradient(ellipse at center, #0d3348 0%, #050f18 100%);
-            color: #e8f8f6;
+            background: radial-gradient(ellipse at center, var(--bg-gradient-inner) 0%, var(--bg-gradient-outer) 100%);
+            color: var(--cream);
             height: 100vh;
             width: 100vw;
             overflow: clip;
@@ -917,6 +982,96 @@
         const RANKS  = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
         const API_URL = window.location.origin;
 
+        const THEMES = [
+            {
+                id: 'ocean',
+                name: 'Ocean Deep',
+                vars: { '--forest':'#050f18','--emerald':'#0d3348','--cream':'#e8f8f6','--gold':'#50dcc8','--accent-gold':'#50dcc8','--burgundy':'#e05050','--slate':'#1a4a5e','--felt':'#0d4a5e','--bg-gradient-inner':'#0d3348','--bg-gradient-outer':'#050f18' },
+                swatchBg: 'linear-gradient(135deg, #0d3348, #050f18)',
+                accentColor: '#50dcc8',
+                labelColor: '#e8f8f6',
+            },
+            {
+                id: 'forest',
+                name: 'Deep Forest',
+                vars: { '--forest':'#0d2818','--emerald':'#1a4d2e','--cream':'#faf8f3','--gold':'#f0c674','--accent-gold':'#ffd700','--burgundy':'#8b2e3f','--slate':'#2c3e50','--felt':'#1e5f45','--bg-gradient-inner':'#1a4d2e','--bg-gradient-outer':'#0d2818' },
+                swatchBg: 'linear-gradient(135deg, #1a4d2e, #0d2818)',
+                accentColor: '#f0c674',
+                labelColor: '#faf8f3',
+            },
+            {
+                id: 'navy',
+                name: 'Midnight Navy',
+                vars: { '--forest':'#0a0f1e','--emerald':'#1a2a4d','--cream':'#e8e4f8','--gold':'#c8b4ff','--accent-gold':'#c8b4ff','--burgundy':'#e05c7a','--slate':'#2a3560','--felt':'#1a3060','--bg-gradient-inner':'#1a2a4d','--bg-gradient-outer':'#0a0f1e' },
+                swatchBg: 'linear-gradient(135deg, #1a2a4d, #0a0f1e)',
+                accentColor: '#c8b4ff',
+                labelColor: '#e8e4f8',
+            },
+            {
+                id: 'crimson',
+                name: 'Crimson & Bone',
+                vars: { '--forest':'#2a0a0a','--emerald':'#5c1a1a','--cream':'#f5f0e8','--gold':'#f0dcb4','--accent-gold':'#f0dcb4','--burgundy':'#c0392b','--slate':'#5a2020','--felt':'#7a2020','--bg-gradient-inner':'#5c1a1a','--bg-gradient-outer':'#2a0a0a' },
+                swatchBg: 'linear-gradient(135deg, #5c1a1a, #2a0a0a)',
+                accentColor: '#f0dcb4',
+                labelColor: '#f5f0e8',
+            },
+            {
+                id: 'slate',
+                name: 'Slate & Amber',
+                vars: { '--forest':'#12141a','--emerald':'#2a2e3a','--cream':'#f0ede8','--gold':'#ffb432','--accent-gold':'#ffb432','--burgundy':'#e05050','--slate':'#3a3e4a','--felt':'#1e2430','--bg-gradient-inner':'#2a2e3a','--bg-gradient-outer':'#12141a' },
+                swatchBg: 'linear-gradient(135deg, #2a2e3a, #12141a)',
+                accentColor: '#ffb432',
+                labelColor: '#f0ede8',
+            },
+            {
+                id: 'tobacco',
+                name: 'Tobacco & Ivory',
+                vars: { '--forest':'#0e0c08','--emerald':'#2a2018','--cream':'#f5f2ea','--gold':'#e6d2a0','--accent-gold':'#e6d2a0','--burgundy':'#c0392b','--slate':'#3a3020','--felt':'#3a3020','--bg-gradient-inner':'#2a2018','--bg-gradient-outer':'#0e0c08' },
+                swatchBg: 'linear-gradient(135deg, #2a2018, #0e0c08)',
+                accentColor: '#e6d2a0',
+                labelColor: '#f5f2ea',
+            },
+            {
+                id: 'violet',
+                name: 'Violet Dusk',
+                vars: { '--forest':'#100818','--emerald':'#2a1040','--cream':'#f0ecff','--gold':'#d4a8ff','--accent-gold':'#d4a8ff','--burgundy':'#ff6b8a','--slate':'#3a2050','--felt':'#3a1858','--bg-gradient-inner':'#2a1040','--bg-gradient-outer':'#100818' },
+                swatchBg: 'linear-gradient(135deg, #2a1040, #100818)',
+                accentColor: '#d4a8ff',
+                labelColor: '#f0ecff',
+            },
+            {
+                id: 'obsidian',
+                name: 'Obsidian & Rose',
+                vars: { '--forest':'#0a0a0a','--emerald':'#1a1a1a','--cream':'#fff0f3','--gold':'#ff8fa3','--accent-gold':'#ff8fa3','--burgundy':'#e63950','--slate':'#2a2a2a','--felt':'#1e1215','--bg-gradient-inner':'#1a0a0e','--bg-gradient-outer':'#0a0a0a' },
+                swatchBg: 'linear-gradient(135deg, #1a0a0e, #0a0a0a)',
+                accentColor: '#ff8fa3',
+                labelColor: '#fff0f3',
+            },
+            {
+                id: 'jade',
+                name: 'Jade & Gold',
+                vars: { '--forest':'#0a1a0f','--emerald':'#0f2d1a','--cream':'#f8f5e8','--gold':'#d4af37','--accent-gold':'#d4af37','--burgundy':'#c0392b','--slate':'#1a3825','--felt':'#1a3828','--bg-gradient-inner':'#0f2d1a','--bg-gradient-outer':'#0a1a0f' },
+                swatchBg: 'linear-gradient(135deg, #0f2d1a, #0a1a0f)',
+                accentColor: '#d4af37',
+                labelColor: '#f8f5e8',
+            },
+            {
+                id: 'arctic',
+                name: 'Arctic Steel',
+                vars: { '--forest':'#0d1520','--emerald':'#162535','--cream':'#e8f4ff','--gold':'#7ec8e3','--accent-gold':'#7ec8e3','--burgundy':'#e05050','--slate':'#2a3f55','--felt':'#162535','--bg-gradient-inner':'#162535','--bg-gradient-outer':'#0d1520' },
+                swatchBg: 'linear-gradient(135deg, #162535, #0d1520)',
+                accentColor: '#7ec8e3',
+                labelColor: '#e8f4ff',
+            },
+        ];
+
+        function applyTheme(theme) {
+            const root = document.documentElement;
+            Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+            // Update html background to match
+            root.style.background = theme.vars['--bg-gradient-outer'];
+        }
+
         function cardIsRed(card) { const s = Math.floor(card/13); return s===1||s===2; }
         function cardToString(card) {
             const suit=Math.floor(card/13), rank=card%13;
@@ -949,8 +1104,16 @@
             const [showStatsModal, setShowStatsModal]           = useState(false);
             const [showRulesModal, setShowRulesModal]           = useState(false);
             const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+            const [showThemeModal, setShowThemeModal]           = useState(false);
+            const [currentThemeId, setCurrentThemeId]          = useState(() => localStorage.getItem('ohHellTheme') || 'ocean');
             const [statsData, setStatsData]      = useState(null);
             const [leaderboardData, setLeaderboardData] = useState(null);
+
+            // Apply saved theme on mount
+            useEffect(() => {
+                const saved = THEMES.find(t => t.id === currentThemeId) || THEMES[0];
+                applyTheme(saved);
+            }, []);
 
             // If already logged in (persisted), skip to setup
             useEffect(() => {
@@ -992,6 +1155,13 @@
                 } catch(e) {
                     setAuthError('Could not reach server. Try again.');
                 } finally { setAuthLoading(false); }
+            }
+
+            function selectTheme(theme) {
+                applyTheme(theme);
+                setCurrentThemeId(theme.id);
+                localStorage.setItem('ohHellTheme', theme.id);
+                setShowThemeModal(false);
             }
 
             function handleLogout() {
@@ -1248,13 +1418,44 @@
                             <div style={{color:'var(--slate)',marginTop:'2rem',fontSize:'0.9rem',opacity:0.8}}>
                                 19 rounds • 10→1→10 tricks
                             </div>
-                            <button onClick={handleLogout}
-                                style={{marginTop:'1.5rem',background:'none',border:'1px solid rgba(44,62,80,0.3)',
-                                        color:'var(--slate)',borderRadius:'8px',padding:'0.4rem 1rem',
-                                        cursor:'pointer',fontSize:'0.85rem',fontFamily:'inherit'}}>
-                                Log out
-                            </button>
+                            <div style={{display:'flex',gap:'0.75rem',justifyContent:'center',marginTop:'1.5rem'}}>
+                                <button onClick={handleLogout}
+                                    style={{background:'none',border:'1px solid rgba(44,62,80,0.3)',
+                                            color:'var(--slate)',borderRadius:'8px',padding:'0.4rem 1rem',
+                                            cursor:'pointer',fontSize:'0.85rem',fontFamily:'inherit'}}>
+                                    Log out
+                                </button>
+                                <button onClick={() => setShowThemeModal(true)}
+                                    style={{background:'none',border:'1px solid rgba(44,62,80,0.3)',
+                                            color:'var(--slate)',borderRadius:'8px',padding:'0.4rem 1rem',
+                                            cursor:'pointer',fontSize:'0.85rem',fontFamily:'inherit'}}>
+                                    🎨 Theme
+                                </button>
+                            </div>
                         </div>
+                        {showThemeModal && (
+                            <div className="theme-picker-modal" onClick={() => setShowThemeModal(false)}>
+                                <div className="theme-picker-content" onClick={e => e.stopPropagation()}>
+                                    <button className="close-btn" onClick={() => setShowThemeModal(false)}>×</button>
+                                    <div className="overlay-title">🎨 Color Scheme</div>
+                                    <div className="theme-grid">
+                                        {THEMES.map(theme => (
+                                            <div key={theme.id}
+                                                className={`theme-option ${currentThemeId === theme.id ? 'active' : ''}`}
+                                                onClick={() => selectTheme(theme)}>
+                                                <div className="theme-swatch" style={{background: theme.swatchBg, color: theme.labelColor}}>
+                                                    <div className="theme-dot" style={{background: theme.accentColor}}></div>
+                                                    <span>{theme.name}</span>
+                                                </div>
+                                                <div className="theme-name" style={{background: theme.swatchBg, color: theme.accentColor}}>
+                                                    {currentThemeId === theme.id ? '✓ Active' : 'Select'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1274,7 +1475,33 @@
                         <button className="header-btn" onClick={fetchStats}>Stats</button>
                         <button className="header-btn" onClick={fetchLeaderboard}>🏆</button>
                         <button className="header-btn" onClick={() => setShowRulesModal(true)}>Rules</button>
+                        <button className="header-btn" onClick={() => setShowThemeModal(true)} title="Change theme">🎨</button>
                     </div>
+
+                    {/* Theme picker modal */}
+                    {showThemeModal && (
+                        <div className="theme-picker-modal" onClick={() => setShowThemeModal(false)}>
+                            <div className="theme-picker-content" onClick={e => e.stopPropagation()}>
+                                <button className="close-btn" onClick={() => setShowThemeModal(false)}>×</button>
+                                <div className="overlay-title">🎨 Color Scheme</div>
+                                <div className="theme-grid">
+                                    {THEMES.map(theme => (
+                                        <div key={theme.id}
+                                            className={`theme-option ${currentThemeId === theme.id ? 'active' : ''}`}
+                                            onClick={() => selectTheme(theme)}>
+                                            <div className="theme-swatch" style={{background: theme.swatchBg, color: theme.labelColor}}>
+                                                <div className="theme-dot" style={{background: theme.accentColor}}></div>
+                                                <span>{theme.name}</span>
+                                            </div>
+                                            <div className="theme-name" style={{background: theme.swatchBg, color: theme.accentColor}}>
+                                                {currentThemeId === theme.id ? '✓ Active' : 'Select'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Leaderboard Modal */}
                     {showLeaderboardModal && (
