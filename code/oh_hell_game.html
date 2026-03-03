@@ -8,14 +8,14 @@
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Lato:wght@300;400;700&display=swap');
         
         :root {
-            --forest: #0d2818;
-            --emerald: #1a4d2e;
-            --cream: #faf8f3;
-            --gold: #f0c674;
-            --accent-gold: #ffd700;
-            --burgundy: #8b2e3f;
-            --slate: #2c3e50;
-            --felt: #1e5f45;
+            --forest: #050f18;
+            --emerald: #0d3348;
+            --cream: #e8f8f6;
+            --gold: #50dcc8;
+            --accent-gold: #50dcc8;
+            --burgundy: #e05050;
+            --slate: #1a4a5e;
+            --felt: #0d4a5e;
             --card-bg: #ffffff;
             --text-dark: #1a1a1a;
         }
@@ -26,13 +26,17 @@
             box-sizing: border-box;
         }
         
+        html {
+            background: #050f18;
+        }
+
         body {
             font-family: 'Lato', sans-serif;
-            background: radial-gradient(ellipse at center, var(--emerald) 0%, var(--forest) 100%);
-            color: var(--cream);
+            background: radial-gradient(ellipse at center, #0d3348 0%, #050f18 100%);
+            color: #e8f8f6;
             height: 100vh;
             width: 100vw;
-            overflow: hidden;
+            overflow: clip;
             position: fixed;
             margin: 0;
             padding: 0;
@@ -64,7 +68,8 @@
             width: 100vw;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow: clip;
+            transform-origin: top left;
         }
         
         header {
@@ -896,7 +901,6 @@
     <div class="app-container">
         <header>
             <h1>Oh Hell</h1>
-            <div class="subtitle">Gentleman's Card Club</div>
         </header>
         
         <div id="root"></div>
@@ -1053,7 +1057,8 @@
                     const numPlayers = gameState.players.length;
                     const expected = tricksInRound / numPlayers;
                     const delta = bid - expected;
-                    setBidDeltaAcc(prev => ({total: prev.total + delta, count: prev.count + 1}));
+                    const newAcc = {total: bidDeltaAcc.total + delta, count: bidDeltaAcc.count + 1};
+                    setBidDeltaAcc(newAcc);
 
                     const response = await fetch(`${API_URL}/bid`, {
                         method:'POST', headers:{'Content-Type':'application/json'},
@@ -1063,6 +1068,11 @@
                     if (!response.ok) { setStatusMessage(data.error||'Bid error'); return; }
                     setGameState(data); setGameProgress(data.gameProgress||gameProgress);
                     if (data.messages?.length) setStatusMessage('');
+                    // Update bid delta stats live after every bid
+                    fetch(`${API_URL}/record_bid_delta`, {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({username, bid_delta: delta})
+                    }).catch(() => {});
                     if (data.roundOver) { await handleRoundOver(data); return; }
                     if (data.phase==='playing' && data.currentPlayer!==0) {
                         await advanceAI();
@@ -1536,6 +1546,25 @@
         }
 
         ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    <script>
+        // Responsive scaling: shrink the whole layout on small screens, never upscale
+        (function() {
+            var BASE_W = 900;
+            var BASE_H = 780;
+            function applyScale() {
+                var scale = Math.min(1, window.innerWidth / BASE_W, window.innerHeight / BASE_H);
+                var el = document.querySelector('.app-container');
+                if (!el) return;
+                el.style.transform = scale < 1 ? 'scale(' + scale + ')' : '';
+                el.style.width = scale < 1 ? (100 / scale) + 'vw' : '';
+                el.style.height = scale < 1 ? (100 / scale) + 'vh' : '';
+            }
+            window.addEventListener('resize', applyScale);
+            // Run after React renders
+            window.addEventListener('load', applyScale);
+            setTimeout(applyScale, 100);
+        })();
     </script>
 </body>
 </html>
