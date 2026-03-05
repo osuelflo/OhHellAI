@@ -4,7 +4,7 @@ oh_hell_server.py  —  Flask API server for Oh Hell card game.
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import random, traceback, os, uuid, time, threading, logging, sys, json, pickle, base64
+import random, traceback, os, uuid, time, threading, logging, sys, json
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s')
@@ -72,9 +72,19 @@ OhHellState.getTrumpProb        = lambda self,a,b: self.trumpSuitProbs.get((a,b)
 OhHellState.getTrumpOneTrickProb= lambda self,n,o,r: self.trumpOneTrickProbs.get((n,o,r),0)
 OhHellState.getSideOneTrickProb = lambda self,n,o,r: self.sideOneTrickProbs.get((n,o,r),0)
 
-# ── Session store defined after Firestore init below ──────────────────────────
+# ── Session store ─────────────────────────────────────────────────────────────
+game_instances = {}
 SESSION_TTL = 7200
-_sessions_collection = 'game_sessions'
+
+def _cleanup():
+    while True:
+        time.sleep(300)
+        now = time.time()
+        for sid in [s for s,g in list(game_instances.items()) if now-g.get('last_active',now)>SESSION_TTL]:
+            del game_instances[sid]
+
+threading.Thread(target=_cleanup, daemon=True).start()
+def touch(g): g['last_active'] = time.time()
 
 # ── Game helpers ──────────────────────────────────────────────────────────────
 def create_game_state(num_players=4, tricks_in_round=10, human_player=0):
@@ -203,17 +213,17 @@ def start_game():
         username     = data.get('username', 'Anonymous').strip() or 'Anonymous'
         session_id   = str(uuid.uuid4())
         tricks_seq   = list(range(10,0,-1)) + list(range(2,11))
-        game = {
+        game_instances[session_id] = {
             'current_state': None, 'num_players': num_players, 'human_player': human_player,
             'username': username, 'tricks_sequence': tricks_seq, 'current_round': 0,
             'cumulative_scores': [0]*num_players, 'dealer': random.randint(0,num_players-1),
             'last_active': time.time(), 'game_id': str(uuid.uuid4()),
         }
+        game = game_instances[session_id]
         state = create_game_state(num_players, game['tricks_sequence'][0], human_player)
         state.dealer = game['dealer']; game['current_state'] = state
         state.playerToMove = state.GetNextPlayer(state.dealer)
         messages = run_bidding_phase(state, human_player, game['game_id'], 1, username)
-        save_game(session_id, game)
         response = state_to_json(state, human_player)
         response['session_id'] = session_id
         response['gameProgress'] = {'currentRound':1,'totalRounds':len(tricks_seq),'cumulativeScores':game['cumulative_scores']}
@@ -227,8 +237,9 @@ def submit_bid():
     try:
         data = request.json
         session_id = data.get('session_id'); player = data.get('player',0); bid = data.get('bid')
-        if not session_id or not (game := load_game(session_id)):
+        if not session_id or session_id not in game_instances:
             return jsonify({'error':'Session not found. Please start a new game.'}), 404
+        game = game_instances[session_id]; touch(game)
         state = game['current_state']; username = game.get('username','Anonymous')
         if player != state.playerToMove: return jsonify({'error':'Not your turn to bid.'}), 400
         if not state.haventBid[player]:  return jsonify({'error':'You have already bid'}), 400
@@ -242,7 +253,6 @@ def submit_bid():
             state.playerToMove = state.GetNextPlayer(state.dealer)
             messages.append("Bidding complete! Let's play!")
             messages.extend(run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round']+1, username=username))
-        save_game(session_id, game)
         response = state_to_json(state, player); response['session_id']=session_id
         add_progress(response, game)
         if messages: response['messages'] = messages
@@ -255,8 +265,9 @@ def play_card():
     try:
         data = request.json
         session_id = data.get('session_id'); player = data.get('player',0); card = data.get('card')
-        if not session_id or not (game := load_game(session_id)):
+        if not session_id or session_id not in game_instances:
             return jsonify({'error':'Session not found. Please start a new game.'}), 404
+        game = game_instances[session_id]; touch(game)
         state = game['current_state']; username = game.get('username','Anonymous')
         if player != state.playerToMove: return jsonify({'error':'Not your turn.'}), 400
         if not CardHelper.has_card(state.GetMoves(), card): return jsonify({'error':'Illegal move.'}), 400
@@ -270,7 +281,6 @@ def play_card():
             state._last_trick_winner = winner
             state._last_winning_card = next((c for p,c in trick_before if p==winner), None)
             messages.append(f"Player {winner+1} won the trick!")
-        save_game(session_id, game)
         response = state_to_json(state, player); response['session_id']=session_id
         if messages: response['message']=' | '.join(messages)
         add_round_over(response, game, state); add_progress(response, game)
@@ -282,12 +292,12 @@ def play_card():
 def advance_ai():
     try:
         data = request.json; session_id = data.get('session_id')
-        if not session_id or not (game := load_game(session_id)):
+        if not session_id or session_id not in game_instances:
             return jsonify({'error':'Session not found. Please start a new game.'}), 404
+        game = game_instances[session_id]; touch(game)
         state = game['current_state']; player = game['human_player']
         username = game.get('username','Anonymous')
         messages = run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round']+1, username=username)
-        save_game(session_id, game)
         response = state_to_json(state, player); response['session_id']=session_id
         if messages: response['message']=' | '.join(messages)
         add_round_over(response, game, state); add_progress(response, game)
@@ -299,8 +309,9 @@ def advance_ai():
 def next_round():
     try:
         data = request.json; session_id = data.get('session_id')
-        if not session_id or not (game := load_game(session_id)):
+        if not session_id or session_id not in game_instances:
             return jsonify({'error':'Session not found. Please start a new game.'}), 404
+        game = game_instances[session_id]; touch(game)
         username = game.get('username','Anonymous')
         if game['current_round'] >= len(game['tricks_sequence']): return jsonify({'error':'Game is over'}), 400
         game['dealer'] = (game['dealer']+1) % game['num_players']
@@ -308,7 +319,6 @@ def next_round():
         state.dealer = game['dealer']; game['current_state'] = state
         state.playerToMove = state.GetNextPlayer(state.dealer)
         messages = run_bidding_phase(state, game['human_player'], game['game_id'], game['current_round']+1, username)
-        save_game(session_id, game)
         response = state_to_json(state, game['human_player']); response['session_id']=session_id
         add_progress(response, game)
         if messages: response['messages'] = messages
@@ -319,8 +329,8 @@ def next_round():
 @app.route('/state', methods=['GET'])
 def get_state():
     session_id = request.args.get('session_id')
-    if not session_id or not (game := load_game(session_id)): return jsonify({'error':'Session not found.'}), 404
-    state = game['current_state']
+    if not session_id or session_id not in game_instances: return jsonify({'error':'Session not found.'}), 404
+    game = game_instances[session_id]; touch(game); state = game['current_state']
     response = state_to_json(state, game['human_player']); response['session_id']=session_id
     add_progress(response, game); return jsonify(response)
 
@@ -354,58 +364,6 @@ def _load_json(path):
 
 def _save_json(path, data):
     with open(path,'w') as f: json.dump(data, f)
-
-# ── Session store (Firestore-backed) ─────────────────────────────────────────
-def _state_to_b64(state):
-    return base64.b64encode(pickle.dumps(state)).decode('utf-8')
-
-def _b64_to_state(b64):
-    return pickle.loads(base64.b64decode(b64.encode('utf-8')))
-
-def load_game(session_id):
-    if _firestore_available:
-        doc = _db.collection(_sessions_collection).document(session_id).get()
-        if not doc.exists: return None
-        data = doc.to_dict()
-        data['current_state'] = _b64_to_state(data['state_b64'])
-        return data
-    else:
-        sessions = _load_json('game_sessions.json')
-        data = sessions.get(session_id)
-        if not data: return None
-        data['current_state'] = _b64_to_state(data['state_b64'])
-        return data
-
-def save_game(session_id, game):
-    data = {k: v for k, v in game.items() if k != 'current_state'}
-    data['state_b64'] = _state_to_b64(game['current_state'])
-    data['last_active'] = time.time()
-    if _firestore_available:
-        _db.collection(_sessions_collection).document(session_id).set(data)
-    else:
-        with _stats_lock:
-            sessions = _load_json('game_sessions.json')
-            sessions[session_id] = data
-            _save_json('game_sessions.json', sessions)
-
-def delete_old_sessions():
-    while True:
-        time.sleep(600)
-        try:
-            cutoff = time.time() - SESSION_TTL
-            if _firestore_available:
-                old = _db.collection(_sessions_collection).where('last_active', '<', cutoff).stream()
-                for doc in old: doc.reference.delete()
-            else:
-                with _stats_lock:
-                    sessions = _load_json('game_sessions.json')
-                    to_del = [s for s,g in sessions.items() if g.get('last_active',0) < cutoff]
-                    for s in to_del: del sessions[s]
-                    if to_del: _save_json('game_sessions.json', sessions)
-        except Exception as e:
-            logger.warning(f"Session cleanup error: {e}")
-
-threading.Thread(target=delete_old_sessions, daemon=True).start()
 
 @app.route('/register', methods=['POST'])
 def register():
