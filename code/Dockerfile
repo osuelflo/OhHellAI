@@ -14,7 +14,7 @@ ENV PORT=8080
 
 CMD gunicorn oh_hell_server:app \
     --bind 0.0.0.0:$PORT \
-    --workers 1 \
+    --workers 4 \
     --worker-class sync \
     --threads 1 \
     --timeout 300 \
