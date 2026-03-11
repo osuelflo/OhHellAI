@@ -1280,15 +1280,30 @@
                 } catch(e) { setStatusMessage('Error playing card'); }
             }
 
+            async function pollAIResult() {
+                while (true) {
+                    await new Promise(r => setTimeout(r, 300));
+                    const res = await fetch(`${API_URL}/ai_result`, {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({session_id:sessionId})
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'AI error');
+                    if (data.status === 'thinking') continue;
+                    return data;
+                }
+            }
+
             async function advanceAI() {
                 try {
                     while (true) {
-                        const response = await fetch(`${API_URL}/advance_ai`, {
+                        const kickoff = await fetch(`${API_URL}/advance_ai`, {
                             method:'POST', headers:{'Content-Type':'application/json'},
                             body: JSON.stringify({session_id:sessionId})
                         });
-                        const data = await response.json();
-                        if (!response.ok) return;
+                        if (!kickoff.ok) return;
+
+                        const data = await pollAIResult();
 
                         if (data.lastTrickWinner !== undefined) {
                             const winnerName = data.lastTrickWinner===0 ? 'You' : `Player ${data.lastTrickWinner+1}`;
@@ -1305,7 +1320,6 @@
                         }
 
                         if (data.roundOver) { await handleRoundOver(data); return; }
-
                         if (data.phase === 'bidding') return;
                         if (data.phase === 'playing' && data.currentPlayer === 0) return;
                     }
@@ -1346,7 +1360,7 @@
                         <div className="modal-content" style={{maxWidth:'420px'}}>
                             <div className="modal-title">Oh Hell</div>
                             <div style={{color:'var(--slate)',fontSize:'0.95rem',textAlign:'center',marginBottom:'1.5rem',opacity:0.8}}>
-                                Login or create an account to play!
+                                The card game where someone always gets it wrong
                             </div>
 
                             {/* Tab switcher */}

@@ -5,6 +5,9 @@ oh_hell_server.py  —  Flask API server for Oh Hell card game.
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import random, traceback, os, uuid, time, threading, logging, sys, json, pickle, base64
+from concurrent.futures import ThreadPoolExecutor
+
+_ai_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix='ai_worker')
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s')
@@ -278,22 +281,69 @@ def play_card():
     except Exception as e:
         logger.exception("ERROR in play_card"); return jsonify({'error':str(e)}), 500
 
+def _do_ai_turn(session_id):
+    """Run one AI move in the thread pool, save result back to Firestore."""
+    try:
+        game = load_game(session_id)
+        if not game: return
+        state = game['current_state']; player = game['human_player']
+        username = game.get('username','Anonymous')
+        messages = run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round']+1, username=username)
+        response = state_to_json(state, player); response['session_id']=session_id
+        add_round_over(response, game, state); add_progress(response, game)
+        if messages: response['message']=' | '.join(messages)
+        game['_ai_result'] = response
+        game['_ai_thinking'] = False
+        save_game(session_id, game)
+    except Exception as e:
+        logger.exception("ERROR in _do_ai_turn")
+        try:
+            game = load_game(session_id)
+            if game:
+                game['_ai_thinking'] = False
+                game['_ai_error'] = str(e)
+                save_game(session_id, game)
+        except Exception: pass
+
 @app.route('/advance_ai', methods=['POST'])
 def advance_ai():
     try:
         data = request.json; session_id = data.get('session_id')
         if not session_id or not (game := load_game(session_id)):
             return jsonify({'error':'Session not found. Please start a new game.'}), 404
-        state = game['current_state']; player = game['human_player']
-        username = game.get('username','Anonymous')
-        messages = run_playing_phase(state, player, game_id=game['game_id'], round_num=game['current_round']+1, username=username)
-        response = state_to_json(state, player); response['session_id']=session_id
+        # If already thinking, just tell client to keep polling
+        if game.get('_ai_thinking'):
+            return jsonify({'status':'thinking','session_id':session_id})
+        # Clear any previous result, mark as thinking, submit to thread pool
+        game['_ai_thinking'] = True
+        game['_ai_result'] = None
+        game.pop('_ai_error', None)
         save_game(session_id, game)
-        if messages: response['message']=' | '.join(messages)
-        add_round_over(response, game, state); add_progress(response, game)
-        return jsonify(response)
+        _ai_executor.submit(_do_ai_turn, session_id)
+        return jsonify({'status':'thinking','session_id':session_id})
     except Exception as e:
         logger.exception("ERROR in advance_ai"); return jsonify({'error':str(e)}), 500
+
+@app.route('/ai_result', methods=['POST'])
+def ai_result():
+    try:
+        data = request.json; session_id = data.get('session_id')
+        if not session_id or not (game := load_game(session_id)):
+            return jsonify({'error':'Session not found. Please start a new game.'}), 404
+        if game.get('_ai_error'):
+            err = game['_ai_error']
+            game.pop('_ai_error', None); game['_ai_thinking'] = False
+            save_game(session_id, game)
+            return jsonify({'error': err}), 500
+        if game.get('_ai_thinking') or not game.get('_ai_result'):
+            return jsonify({'status':'thinking','session_id':session_id})
+        # Result is ready — return it and clear
+        response = game['_ai_result']
+        game['_ai_result'] = None; game['_ai_thinking'] = False
+        save_game(session_id, game)
+        return jsonify(response)
+    except Exception as e:
+        logger.exception("ERROR in ai_result"); return jsonify({'error':str(e)}), 500
 
 @app.route('/next_round', methods=['POST'])
 def next_round():
