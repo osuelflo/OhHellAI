@@ -925,8 +925,16 @@ class OhHellState():
                 else:
                     count = 0
             if count < self.bids[startingPlayer]:
-                if self.getBidSum() - 1 != self.tricksInRound:
-                    self.bids[startingPlayer] -= 1
+                diff = self.bids[startingPlayer] - count
+                if self.getBidSum() - diff != self.tricksInRound:
+                    self.bids[startingPlayer] = count
+                else:
+                    self.bids[startingPlayer] = count-1
+                    if self.bids[startingPlayer] < 0:
+                        if self.getBidSum() + 1 == self.tricksInRound:
+                            self.bids[startingPlayer] = 1
+                        else:
+                            self.bids[startingPlayer] = 0
         if self.bids[startingPlayer] < 0:
             if self.getBidSum() + 1 == self.tricksInRound:
                 self.bids[startingPlayer] = 1
