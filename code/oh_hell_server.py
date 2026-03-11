@@ -676,7 +676,9 @@ def _log_bid_async(game_id, state, player, bid, round_num, username='Anonymous')
                     'num_players':state.numberOfPlayers,'round':round_num,'tricks_in_round':state.tricksInRound,
                     'player':player,'bid':bid,'previous_bids':','.join(prev_bids),
                     'player_hand':_c2s(CardHelper.to_list(state.playerHands[player])),
-                    'expected_bid':round(state.tricksInRound/state.numberOfPlayers,2),'human_player_name':username}]
+                    'expected_bid':round(state.tricksInRound/state.numberOfPlayers,2),
+                    'trump_suit':state.trumpSuit if state.trumpSuit is not None else -1,
+                    'human_player_name':username}]
             errs = _bq.insert_rows_json(_bq_bids, row)
             if errs: print(f"BQ bids errors: {errs}")
         except Exception as e: print(f"BQ bid error: {e}")
